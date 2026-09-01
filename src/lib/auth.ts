@@ -2,15 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/db";
 import { cmsUsers } from "@/db/schema";
 import { authConfig } from "@/auth.config";
-
-const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
+import { loginCredentialsSchema } from "@/lib/user-schemas";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -22,7 +17,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Wachtwoord", type: "password" },
       },
       async authorize(credentials) {
-        const parsed = credentialsSchema.safeParse(credentials);
+        const parsed = loginCredentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
 

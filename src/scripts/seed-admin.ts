@@ -13,7 +13,7 @@ import { cmsUsers } from "@/db/schema";
  * Gebruik: npm run seed:admin
  */
 async function main() {
-  const email = process.env.ADMIN_EMAIL;
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
 
   if (!email || !password) {

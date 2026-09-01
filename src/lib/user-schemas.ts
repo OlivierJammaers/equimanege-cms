@@ -24,3 +24,12 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export const userIdSchema = z.object({
   id: z.string().uuid(),
 });
+
+/**
+ * Login-credentials: e-mail wordt genormaliseerd (trim + lowercase) zodat
+ * inloggen nooit hoofdlettergevoelig is. Gedeeld met `src/lib/auth.ts`.
+ */
+export const loginCredentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+});
