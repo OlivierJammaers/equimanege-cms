@@ -56,3 +56,27 @@ test("second record priority and score parsed correctly", () => {
   expect(rows[1].score).toBe(40);
   expect(rows[1].contactScore).toBeNull(); // "" -> null
 });
+
+function buildHtml(record: Record<string, unknown>): string {
+  return `<!doctype html>
+<html><body><script>
+const DATA = [${JSON.stringify(record)}];
+</script></body></html>`;
+}
+
+test("priority is normalized: trimmed and uppercased before validation", () => {
+  const rows = parseLimburgHtml(buildHtml({ Bedrijf: "Messy Prio Stal", Prio: " a " }));
+  expect(rows[0].priority).toBe("A");
+});
+
+test("score guard: non-numeric Score string maps to null, numeric Score is preserved", () => {
+  const rows = parseLimburgHtml(
+    buildHtml({ Bedrijf: "Onbekende Score Stal", Score: "n.v.t." }),
+  );
+  expect(rows[0].score).toBeNull();
+
+  const numericRows = parseLimburgHtml(
+    buildHtml({ Bedrijf: "Numerieke Score Stal", Score: "77" }),
+  );
+  expect(numericRows[0].score).toBe(77);
+});

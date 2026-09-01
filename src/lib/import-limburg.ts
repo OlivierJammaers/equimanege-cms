@@ -186,16 +186,17 @@ function mapRecord(raw: Record<string, unknown>): AccountSeed {
     type: "prospect",
   };
 
-  const prioRaw = str(raw, "Prio");
+  const prioRaw = str(raw, "Prio").trim().toUpperCase();
   seed.priority = isPriority(prioRaw) ? prioRaw : null;
 
   const scoreValue = raw["Score"];
-  seed.score =
+  const parsedScore =
     typeof scoreValue === "number"
       ? scoreValue
       : typeof scoreValue === "string" && scoreValue !== ""
         ? Number(scoreValue)
         : null;
+  seed.score = parsedScore !== null && Number.isNaN(parsedScore) ? null : parsedScore;
 
   return seed;
 }
