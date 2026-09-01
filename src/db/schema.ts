@@ -9,6 +9,7 @@ import {
   date,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("cms_role", ["admin", "sales"]);
@@ -93,6 +94,9 @@ export const accounts = pgTable(
   (t) => ({
     gemeenteIdx: index("accounts_gemeente_idx").on(t.gemeente),
     priorityIdx: index("accounts_priority_idx").on(t.priority),
+    // Conflict-target voor de idempotente Limburg-import-upsert
+    // (src/scripts/run-import-limburg.ts).
+    nameGemeenteUq: uniqueIndex("accounts_name_gemeente_uq").on(t.name, t.gemeente),
   }),
 );
 
