@@ -18,9 +18,10 @@ test.describe("Inloggen", () => {
     await page.getByLabel("Wachtwoord").fill("dit-is-zeker-fout-123");
     await page.getByRole("button", { name: "Inloggen" }).click();
 
-    await expect(page.getByRole("alert")).toHaveText(
-      "Ongeldig e-mailadres of wachtwoord.",
-    );
+    // Next injecteert een eigen role="alert" (route-announcer), dus filter op tekst.
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Ongeldig" }),
+    ).toHaveText("Ongeldig e-mailadres of wachtwoord.");
     await expect(page).toHaveURL(/\/login$/);
   });
 

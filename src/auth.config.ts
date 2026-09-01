@@ -7,6 +7,10 @@ import type { NextAuthConfig } from "next-auth";
  * `src/proxy.ts` importeert uitsluitend dit bestand.
  */
 export const authConfig = {
+  // Vereist buiten Vercel (bv. `next start` lokaal/e2e): zonder dit weigert
+  // Auth.js v5 elke request met UntrustedHost. Op Vercel bepaalt het platform
+  // de host, dus dit is daar veilig.
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
