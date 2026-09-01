@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
-import { accounts, activities, cmsUsers } from "@/db/schema";
+import { accounts, accountSnapshots, activities, cmsUsers } from "@/db/schema";
 import {
   Card,
   CardContent,
@@ -18,7 +18,10 @@ import { NextActionControls } from "@/components/accounts/next-action-controls";
 import { AddCommentForm } from "@/components/accounts/add-comment-form";
 import { ActivityTimeline } from "@/components/accounts/activity-timeline";
 import { EquimanegeLinkCard } from "@/components/accounts/equimanege-link-card";
+import { KpiDashboard } from "@/components/accounts/kpi-dashboard";
 import { requireUser } from "@/lib/auth-guards";
+import type { KpiTenantBlock } from "@/lib/kpi-schema";
+import { daysAgoFromNow } from "@/lib/kpi-series";
 import {
   PRIORITY_LABELS,
   type CallStatus,
@@ -89,6 +92,25 @@ export default async function AccountDetailPage({
     .limit(1);
 
   if (!account) notFound();
+
+  const isLinkedCustomer =
+    account.type === "customer" && account.equimanegeManegeId !== null;
+
+  const snapshotRows = isLinkedCustomer
+    ? await db
+        .select({
+          capturedAt: accountSnapshots.capturedAt,
+          kpis: accountSnapshots.kpis,
+        })
+        .from(accountSnapshots)
+        .where(
+          and(
+            eq(accountSnapshots.accountId, account.id),
+            gte(accountSnapshots.capturedAt, daysAgoFromNow(90)),
+          ),
+        )
+        .orderBy(asc(accountSnapshots.capturedAt))
+    : [];
 
   const activityRows = await db
     .select({
@@ -161,6 +183,17 @@ export default async function AccountDetailPage({
           </div>
         </div>
       </div>
+
+      {isLinkedCustomer ? (
+        <KpiDashboard
+          accountId={account.id}
+          isAdmin={isAdmin}
+          snapshots={snapshotRows.map((row) => ({
+            capturedAt: row.capturedAt,
+            kpis: row.kpis as KpiTenantBlock,
+          }))}
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-6">

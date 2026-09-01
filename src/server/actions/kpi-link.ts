@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { accounts, activities } from "@/db/schema";
 import { assertAdmin, requireUser } from "@/lib/auth-guards";
-import { fetchKpiResponse } from "@/server/kpi-sync";
+import { fetchKpiResponse, syncKpis } from "@/server/kpi-sync";
 
 function revalidateAccountPaths(accountId: string) {
   revalidatePath("/");
@@ -132,4 +132,26 @@ export async function unlinkAccountFromTenant(accountId: string) {
   });
 
   revalidateAccountPaths(parsed.accountId);
+}
+
+const runSyncSchema = z.object({
+  accountId: z.string().uuid(),
+});
+
+/**
+ * Handmatig een KPI-synchronisatie draaien vanaf een accountdetailpagina
+ * ("Nu synchroniseren"-knop, C3). Roept dezelfde `syncKpis` aan als de
+ * dagelijkse cron-route en revalideert alleen dat account. Alleen admins.
+ */
+export async function runKpiSyncNow(accountId: string) {
+  const user = await requireUser();
+  assertAdmin(user);
+
+  const parsed = runSyncSchema.parse({ accountId });
+
+  const result = await syncKpis();
+
+  revalidateAccountPaths(parsed.accountId);
+
+  return result;
 }
