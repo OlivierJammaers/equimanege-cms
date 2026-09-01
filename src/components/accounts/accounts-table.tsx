@@ -6,6 +6,8 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
   Search,
 } from "lucide-react";
 import {
@@ -32,19 +34,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { PriorityBadge } from "@/components/accounts/priority-badge";
 import { CallStatusSelect } from "@/components/accounts/call-status-select";
 import { ExportCsvButton } from "@/components/accounts/export-csv-button";
 import {
   CALL_STATUSES,
   CALL_STATUS_LABELS,
   PRIORITIES,
-  PRIORITY_BADGE_CLASSES,
   type CallStatus,
   type Priority,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { Account } from "@/db/schema";
+
+/**
+ * Alleen de kolommen die de lijst echt nodig heeft (weergave + zoeken).
+ * De lange narratieve velden (opener, aanbod, …) blijven op de server —
+ * dat houdt de payload van 453 rijen klein. `src/app/(app)/page.tsx`
+ * selecteert exact deze kolommen.
+ */
+export type AccountListRow = Pick<
+  Account,
+  | "id"
+  | "priority"
+  | "name"
+  | "category"
+  | "gemeente"
+  | "deelgemeente"
+  | "phone"
+  | "email"
+  | "contactPerson"
+  | "softwareStatus"
+  | "callStatus"
+  | "nextActionDate"
+  | "isDone"
+>;
+
+const PAGE_SIZE = 50;
 
 const ALL_SENTINEL = "__alle__";
 // Radix Select verbiedt een lege string als item-value; "" is een geldige
@@ -58,7 +85,7 @@ const features = tableFeatures({
   sortFns: { alphanumeric: sortFn_alphanumeric },
 });
 
-const columnHelper = createColumnHelper<typeof features, Account>();
+const columnHelper = createColumnHelper<typeof features, AccountListRow>();
 
 const columns = columnHelper.columns([
   columnHelper.accessor("priority", {
@@ -68,17 +95,7 @@ const columns = columnHelper.columns([
     cell: (info) => {
       const priority = info.getValue();
       if (!priority) return <span className="text-muted-foreground">—</span>;
-      return (
-        <Badge
-          variant="outline"
-          className={cn(
-            "font-mono text-[11px] uppercase",
-            PRIORITY_BADGE_CLASSES[priority],
-          )}
-        >
-          {priority}
-        </Badge>
-      );
+      return <PriorityBadge priority={priority} />;
     },
   }),
   columnHelper.accessor("name", {
@@ -88,10 +105,15 @@ const columns = columnHelper.columns([
     cell: (info) => {
       const account = info.row.original;
       return (
-        <div className="flex flex-col">
-          <span className="font-medium text-foreground">{account.name}</span>
+        <div className="flex max-w-[320px] flex-col">
+          <span className="truncate font-medium text-foreground">
+            {account.name}
+          </span>
           {account.category ? (
-            <span className="text-xs text-muted-foreground">
+            <span
+              className="truncate text-xs text-muted-foreground"
+              title={account.category}
+            >
               {account.category}
             </span>
           ) : null}
@@ -112,11 +134,15 @@ const columns = columnHelper.columns([
     cell: (info) => {
       const phone = info.getValue();
       if (!phone) return <span className="text-muted-foreground">—</span>;
+      // Bronveld kan meerdere nummers bevatten ("011 … ; 0475 …"): bel het
+      // eerste nummer, toon de rest afgekapt met de volledige tekst als title.
+      const firstNumber = phone.split(/[;/]/)[0]?.trim() ?? phone;
       return (
         <a
-          href={`tel:${phone}`}
+          href={`tel:${firstNumber}`}
           onClick={(event) => event.stopPropagation()}
-          className="font-mono text-xs text-foreground underline-offset-2 hover:underline"
+          title={phone}
+          className="block max-w-[170px] truncate font-mono text-xs text-foreground underline-offset-2 hover:underline"
         >
           {phone}
         </a>
@@ -127,7 +153,15 @@ const columns = columnHelper.columns([
     id: "softwareStatus",
     header: "Software",
     sortFn: "alphanumeric",
-    cell: (info) => info.getValue() ?? "—",
+    cell: (info) => {
+      const value = info.getValue();
+      if (!value) return <span className="text-muted-foreground">—</span>;
+      return (
+        <span className="block max-w-[180px] truncate" title={value}>
+          {value}
+        </span>
+      );
+    },
   }),
   columnHelper.accessor("callStatus", {
     id: "callStatus",
@@ -159,13 +193,30 @@ function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
   return <ArrowUpDown className="size-3.5 text-muted-foreground/50" />;
 }
 
-export function AccountsTable({ rows }: { rows: Account[] }) {
+export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>(ALL_SENTINEL);
   const [gemeenteFilter, setGemeenteFilter] = useState<string>(ALL_SENTINEL);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_SENTINEL);
   const [hideDone, setHideDone] = useState(false);
+  const [page, setPage] = useState(0);
+
+  // Terug naar pagina 1 zodra een filter of de zoekterm wijzigt — de
+  // paginatie is puur visueel en mag een filterresultaat nooit verbergen.
+  // (Render-time reset i.p.v. useEffect, zie React-docs "adjusting state".)
+  const filterKey = [
+    search,
+    priorityFilter,
+    gemeenteFilter,
+    statusFilter,
+    hideDone,
+  ].join("|");
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(0);
+  }
 
   const gemeenten = useMemo(() => {
     const unique = new Set<string>();
@@ -220,6 +271,16 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
     data: filteredRows,
     getRowId: (row) => row.id,
   });
+
+  // Pagineren gebeurt pas ná filteren én sorteren (visueel; filters en
+  // CSV-export blijven op de volledige set werken).
+  const sortedRows = table.getRowModel().rows;
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pagedRows = sortedRows.slice(
+    safePage * PAGE_SIZE,
+    (safePage + 1) * PAGE_SIZE,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -298,7 +359,7 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border shadow-sm">
+      <div className="overflow-x-auto rounded-lg border shadow-sm">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -323,7 +384,7 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
+            {pagedRows.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
@@ -333,7 +394,7 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row) => (
+              pagedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   onClick={() => router.push(`/accounts/${row.original.id}`)}
@@ -353,6 +414,39 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
           </TableBody>
         </Table>
       </div>
+
+      {sortedRows.length > PAGE_SIZE ? (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            {safePage * PAGE_SIZE + 1}–
+            {Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} van{" "}
+            {sortedRows.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+            >
+              <ChevronLeft className="size-4" />
+              Vorige
+            </Button>
+            <span className="tabular-nums">
+              Pagina {safePage + 1} van {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Volgende
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

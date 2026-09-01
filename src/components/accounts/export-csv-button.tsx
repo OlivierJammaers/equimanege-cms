@@ -4,9 +4,9 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CALL_STATUS_LABELS } from "@/lib/constants";
 import { toCsv } from "@/lib/utils";
-import type { Account } from "@/db/schema";
+import type { AccountListRow } from "@/components/accounts/accounts-table";
 
-function toExportRow(account: Account): Record<string, unknown> {
+function toExportRow(account: AccountListRow): Record<string, unknown> {
   return {
     Naam: account.name,
     Categorie: account.category ?? "",
@@ -21,7 +21,7 @@ function toExportRow(account: Account): Record<string, unknown> {
   };
 }
 
-export function ExportCsvButton({ rows }: { rows: Account[] }) {
+export function ExportCsvButton({ rows }: { rows: AccountListRow[] }) {
   function handleExport() {
     const csv = toCsv(rows.map(toExportRow));
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

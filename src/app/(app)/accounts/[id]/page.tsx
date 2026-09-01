@@ -12,17 +12,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PriorityBadge } from "@/components/accounts/priority-badge";
 import { CallStatusSelect } from "@/components/accounts/call-status-select";
 import { NextActionControls } from "@/components/accounts/next-action-controls";
 import { AddCommentForm } from "@/components/accounts/add-comment-form";
 import { ActivityTimeline } from "@/components/accounts/activity-timeline";
 import {
-  PRIORITY_BADGE_CLASSES,
   PRIORITY_LABELS,
   type CallStatus,
   type Priority,
 } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 
 // Leest rechtstreeks uit de DB — nooit statisch prerenderen.
 export const dynamic = "force-dynamic";
@@ -61,9 +60,11 @@ function Field({
 }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="text-sm text-foreground [overflow-wrap:anywhere]">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -123,15 +124,7 @@ export default async function AccountDetailPage({
                 {account.name}
               </h1>
               {account.priority ? (
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "font-mono text-[11px] uppercase",
-                    PRIORITY_BADGE_CLASSES[account.priority as Priority],
-                  )}
-                >
-                  {account.priority}
-                </Badge>
+                <PriorityBadge priority={account.priority as Priority} />
               ) : null}
               {account.score !== null ? (
                 <span className="font-mono text-xs text-muted-foreground">

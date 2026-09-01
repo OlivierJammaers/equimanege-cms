@@ -16,7 +16,9 @@ async function readListCounter(
 
 /** Klikt de eerste rij van de tabel aan en wacht op de detailpagina. */
 async function openFirstRow(page: Page): Promise<void> {
-  await page.locator("table tbody tr").first().click();
+  // Klik op de naam-cel: het midden van de rij kan op de tel:-link of de
+  // belstatus-select vallen, die bewust stopPropagation doen.
+  await page.locator("table tbody tr").first().locator("td").nth(1).click();
   await page.waitForURL(UUID_PATH);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }

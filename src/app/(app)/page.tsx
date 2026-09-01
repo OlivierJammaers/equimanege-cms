@@ -10,11 +10,31 @@ import { AccountsTable } from "@/components/accounts/accounts-table";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Prospecten — EquiManege CMS",
+  title: "Prospecten — EquiManage CMS",
 };
 
 export default async function AccountsListPage() {
-  const rows = await db.select().from(accounts).orderBy(accounts.priority, accounts.name);
+  // Bewust alléén de lijst-kolommen selecteren: de lange narratieve velden
+  // (opener, aanbod, infrastructuur, …) maken de payload van 453 rijen
+  // onnodig zwaar en horen bij het detail.
+  const rows = await db
+    .select({
+      id: accounts.id,
+      priority: accounts.priority,
+      name: accounts.name,
+      category: accounts.category,
+      gemeente: accounts.gemeente,
+      deelgemeente: accounts.deelgemeente,
+      phone: accounts.phone,
+      email: accounts.email,
+      contactPerson: accounts.contactPerson,
+      softwareStatus: accounts.softwareStatus,
+      callStatus: accounts.callStatus,
+      nextActionDate: accounts.nextActionDate,
+      isDone: accounts.isDone,
+    })
+    .from(accounts)
+    .orderBy(accounts.priority, accounts.name);
   const stats = computeListStats(rows);
 
   return (

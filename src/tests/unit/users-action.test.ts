@@ -73,3 +73,19 @@ test("resetPasswordSchema aanvaardt geldige invoer", () => {
   });
   expect(result.success).toBe(true);
 });
+
+test("loginCredentialsSchema normaliseert e-mail naar lowercase en trimt witruimte", async () => {
+  const { loginCredentialsSchema } = await import("@/lib/user-schemas");
+  const parsed = loginCredentialsSchema.parse({
+    email: "  Olivier@EquiManage.EU ",
+    password: "geheim123",
+  });
+  expect(parsed.email).toBe("olivier@equimanage.eu");
+});
+
+test("loginCredentialsSchema weigert een ongeldig e-mailadres", async () => {
+  const { loginCredentialsSchema } = await import("@/lib/user-schemas");
+  expect(() =>
+    loginCredentialsSchema.parse({ email: "geen-email", password: "x" }),
+  ).toThrow();
+});
