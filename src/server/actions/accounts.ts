@@ -5,9 +5,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { accounts, activities } from "@/db/schema";
-import { requireUser } from "@/lib/auth-guards";
+import { assertAdmin, requireUser } from "@/lib/auth-guards";
 import { buildStatusChangeActivity } from "@/lib/activity-log";
 import { CALL_STATUSES, type CallStatus } from "@/lib/constants";
+import { accountFormSchema, type AccountFormInput } from "@/lib/account-schemas";
 
 function revalidateAccountPaths(accountId: string) {
   revalidatePath("/");
@@ -157,4 +158,116 @@ export async function convertToCustomer(accountId: string) {
   });
 
   revalidateAccountPaths(parsed.accountId);
+}
+
+/**
+ * Maakt handmatig een nieuw account aan (sales + admin). De accounts komen
+ * normaal binnen via de Limburg-import; dit is de handmatige uitzondering
+ * (bv. een prospect buiten die dataset).
+ */
+export async function createAccount(input: AccountFormInput) {
+  const user = await requireUser();
+
+  const parsed = accountFormSchema.parse(input);
+
+  const [inserted] = await db
+    .insert(accounts)
+    .values({
+      name: parsed.name,
+      type: parsed.type,
+      priority: parsed.priority,
+      gemeente: parsed.gemeente,
+      postcode: parsed.postcode,
+      address: parsed.address,
+      phone: parsed.phone,
+      email: parsed.email,
+      website: parsed.website,
+      category: parsed.category,
+      contactPerson: parsed.contactPerson,
+      source: "Handmatig toegevoegd",
+      country: "BE",
+    })
+    .returning({ id: accounts.id });
+
+  await db.insert(activities).values({
+    accountId: inserted.id,
+    userId: user.id,
+    type: "system",
+    body: "Account handmatig aangemaakt",
+  });
+
+  revalidatePath("/");
+
+  return { id: inserted.id };
+}
+
+const accountIdSchema = z.object({ accountId: z.string().uuid() });
+
+/** Werkt de kernvelden van een account bij (sales + admin). */
+export async function updateAccountDetails(
+  accountId: string,
+  input: AccountFormInput,
+) {
+  const user = await requireUser();
+
+  const { accountId: parsedAccountId } = accountIdSchema.parse({ accountId });
+  const parsed = accountFormSchema.parse(input);
+
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.id, parsedAccountId))
+    .limit(1);
+  if (!account) throw new Error("Account niet gevonden");
+
+  await db
+    .update(accounts)
+    .set({
+      name: parsed.name,
+      type: parsed.type,
+      priority: parsed.priority,
+      gemeente: parsed.gemeente,
+      postcode: parsed.postcode,
+      address: parsed.address,
+      phone: parsed.phone,
+      email: parsed.email,
+      website: parsed.website,
+      category: parsed.category,
+      contactPerson: parsed.contactPerson,
+      updatedAt: new Date(),
+    })
+    .where(eq(accounts.id, parsedAccountId));
+
+  await db.insert(activities).values({
+    accountId: parsedAccountId,
+    userId: user.id,
+    type: "system",
+    body: "Gegevens bijgewerkt",
+  });
+
+  revalidateAccountPaths(parsedAccountId);
+}
+
+/**
+ * Verwijdert een account (en cascade: activiteiten + KPI-snapshots).
+ * Alleen door admins — destructieve actie, geen manier om ongedaan te maken.
+ */
+export async function deleteAccount(accountId: string) {
+  const user = await requireUser();
+  assertAdmin(user);
+
+  const { accountId: parsedAccountId } = accountIdSchema.parse({ accountId });
+
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.id, parsedAccountId))
+    .limit(1);
+  if (!account) throw new Error("Account niet gevonden");
+
+  await db.delete(accounts).where(eq(accounts.id, parsedAccountId));
+
+  revalidatePath("/");
+
+  return { deleted: true };
 }

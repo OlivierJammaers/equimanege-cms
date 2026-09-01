@@ -4,6 +4,7 @@ import { accounts } from "@/db/schema";
 import { computeListStats } from "@/lib/stats";
 import { StatsTiles } from "@/components/accounts/stats-tiles";
 import { AccountsTable } from "@/components/accounts/accounts-table";
+import { NewAccountButton } from "@/components/accounts/new-account-button";
 
 // Leest rechtstreeks uit de DB — nooit statisch prerenderen (er is bovendien
 // geen DATABASE_URL beschikbaar tijdens `next build`).
@@ -39,11 +40,14 @@ export default async function AccountsListPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Prospecten</h1>
-        <p className="text-sm text-muted-foreground">
-          Overzicht van alle accounts en hun belstatus.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Prospecten</h1>
+          <p className="text-sm text-muted-foreground">
+            Overzicht van alle accounts en hun belstatus.
+          </p>
+        </div>
+        <NewAccountButton />
       </div>
 
       <StatsTiles stats={stats} />

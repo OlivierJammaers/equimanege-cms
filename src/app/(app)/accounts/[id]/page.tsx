@@ -14,6 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "@/components/accounts/priority-badge";
 import { CallStatusSelect } from "@/components/accounts/call-status-select";
+import { AccountDetailActions } from "@/components/accounts/account-detail-actions";
+import type { AccountFormDefaultValues } from "@/components/accounts/account-form-dialog";
 import { NextActionControls } from "@/components/accounts/next-action-controls";
 import { AddCommentForm } from "@/components/accounts/add-comment-form";
 import { ActivityTimeline } from "@/components/accounts/activity-timeline";
@@ -126,6 +128,20 @@ export default async function AccountDetailPage({
     .where(eq(activities.accountId, account.id))
     .orderBy(desc(activities.createdAt));
 
+  const editDefaultValues: AccountFormDefaultValues = {
+    name: account.name,
+    type: account.type,
+    priority: account.priority,
+    category: account.category ?? "",
+    gemeente: account.gemeente ?? "",
+    postcode: account.postcode ?? "",
+    address: account.address ?? "",
+    phone: account.phone ?? "",
+    email: account.email ?? "",
+    website: account.website ?? "",
+    contactPerson: account.contactPerson ?? "",
+  };
+
   const addressParts = [
     account.address,
     [account.postcode, account.gemeente].filter(Boolean).join(" ").trim() ||
@@ -175,11 +191,18 @@ export default async function AccountDetailPage({
             </p>
           </div>
 
-          <div className="min-w-[11rem]">
-            <CallStatusSelect
+          <div className="flex flex-col items-end gap-2">
+            <AccountDetailActions
               accountId={account.id}
-              value={account.callStatus as CallStatus}
+              isAdmin={isAdmin}
+              defaultValues={editDefaultValues}
             />
+            <div className="min-w-[11rem]">
+              <CallStatusSelect
+                accountId={account.id}
+                value={account.callStatus as CallStatus}
+              />
+            </div>
           </div>
         </div>
       </div>
