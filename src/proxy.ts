@@ -15,5 +15,7 @@ export const { auth } = NextAuth(authConfig);
 export const proxy = auth;
 
 export const config = {
-  matcher: ["/((?!login|api/auth|_next|favicon).*)"],
+  // api/cron uitgezonderd: die routes beveiligen zichzelf met CRON_SECRET
+  // (Vercel-cron heeft geen login-sessie en zou anders naar /login redirecten).
+  matcher: ["/((?!login|api/auth|api/cron|_next|favicon).*)"],
 };
