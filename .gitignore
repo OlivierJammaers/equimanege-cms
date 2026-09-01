@@ -13,6 +13,13 @@
 # testing
 /coverage
 
+# playwright (e2e draait lokaal tegen de dev-Neon-DB, niet in CI — zie
+# .github/workflows/tests.yml en playwright.config.ts)
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # next.js
 /.next/
 /out/
