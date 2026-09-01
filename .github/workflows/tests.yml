@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Vitest
+        run: npm run test
+
+      # De app gebruikt @neondatabase/serverless (neon-http), dat alleen
+      # tegen Neon's HTTP-proxy werkt — een lokale Postgres-service (of
+      # test-Neon-branch) is voor deze CI bewust niet opgezet. `next build`
+      # heeft daarom alleen syntactisch geldige env-waarden nodig (de
+      # DB-afhankelijke pagina's zijn `force-dynamic` en worden pas ten
+      # tijde van een request geëvalueerd, niet tijdens de build).
+      #
+      # De Playwright e2e-suite (src/tests/e2e/) draait bewust NIET in CI:
+      # ze heeft een echte, gemigreerde en geseede database nodig (zie de
+      # documentatie bovenaan playwright.config.ts) en draait lokaal tegen
+      # de dev-Neon-database via `npm run test:e2e`.
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgres://user:pass@localhost:5432/dummy
+          DATABASE_URL_UNPOOLED: postgres://user:pass@localhost:5432/dummy
+          AUTH_SECRET: dummy-ci-secret-not-used-at-runtime
