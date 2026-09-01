@@ -72,6 +72,13 @@ export async function addComment(accountId: string, body: string) {
 
   const parsed = addCommentSchema.parse({ accountId, body });
 
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.id, parsed.accountId))
+    .limit(1);
+  if (!account) throw new Error("Account niet gevonden");
+
   await db.insert(activities).values({
     accountId: parsed.accountId,
     userId: user.id,
@@ -84,10 +91,7 @@ export async function addComment(accountId: string, body: string) {
 
 const setNextActionSchema = z.object({
   accountId: z.string().uuid(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Ongeldige datum.")
-    .nullable(),
+  date: z.iso.date("Ongeldige datum.").nullable(),
 });
 
 /** Zet (of wist) de eerstvolgende actiedatum voor een account. */
@@ -132,6 +136,13 @@ export async function convertToCustomer(accountId: string) {
   const user = await requireUser();
 
   const parsed = convertToCustomerSchema.parse({ accountId });
+
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.id, parsed.accountId))
+    .limit(1);
+  if (!account) throw new Error("Account niet gevonden");
 
   await db
     .update(accounts)
