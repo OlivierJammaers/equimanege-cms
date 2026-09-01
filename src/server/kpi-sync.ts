@@ -2,7 +2,7 @@ import { and, eq, gte, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, accountSnapshots } from "@/db/schema";
 import { env } from "@/env";
-import { kpiResponseSchema } from "@/lib/kpi-schema";
+import { kpiResponseSchema, type KpiResponse } from "@/lib/kpi-schema";
 import { matchSnapshots } from "@/lib/kpi-sync-core";
 
 function startOfTodayUtc(): Date {
@@ -17,13 +17,11 @@ export type SyncKpisResult = {
 };
 
 /**
- * Haalt de KPI-payload op bij de EquiManage-backend en schrijft per
- * gekoppeld account maximaal één snapshot per (UTC-)kalenderdag naar
- * `account_snapshots`. Wordt aangeroepen vanuit de cron-route
- * (`src/app/api/cron/kpi-sync/route.ts`) en straks vanuit een
- * admin-server-action ("Nu synchroniseren", C3).
+ * Haalt de ruwe KPI-payload op bij de EquiManage-backend en valideert 'm
+ * tegen het contract. Gedeeld door `syncKpis` (snapshot-schrijven) en de
+ * koppel-UI (`src/server/actions/kpi-link.ts`, alleen tenant-metadata nodig).
  */
-export async function syncKpis(): Promise<SyncKpisResult> {
+export async function fetchKpiResponse(): Promise<KpiResponse> {
   if (!env.KPI_SYNC_SECRET) {
     throw new Error("KPI_SYNC_SECRET ontbreekt — kan niet synchroniseren met EquiManage.");
   }
@@ -40,7 +38,18 @@ export async function syncKpis(): Promise<SyncKpisResult> {
   }
 
   const json = await response.json();
-  const payload = kpiResponseSchema.parse(json);
+  return kpiResponseSchema.parse(json);
+}
+
+/**
+ * Haalt de KPI-payload op bij de EquiManage-backend en schrijft per
+ * gekoppeld account maximaal één snapshot per (UTC-)kalenderdag naar
+ * `account_snapshots`. Wordt aangeroepen vanuit de cron-route
+ * (`src/app/api/cron/kpi-sync/route.ts`) en straks vanuit een
+ * admin-server-action ("Nu synchroniseren", C3).
+ */
+export async function syncKpis(): Promise<SyncKpisResult> {
+  const payload = await fetchKpiResponse();
 
   const linkedAccounts = await db
     .select({ id: accounts.id, equimanegeManegeId: accounts.equimanegeManegeId })

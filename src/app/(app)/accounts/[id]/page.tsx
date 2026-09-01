@@ -17,6 +17,8 @@ import { CallStatusSelect } from "@/components/accounts/call-status-select";
 import { NextActionControls } from "@/components/accounts/next-action-controls";
 import { AddCommentForm } from "@/components/accounts/add-comment-form";
 import { ActivityTimeline } from "@/components/accounts/activity-timeline";
+import { EquimanegeLinkCard } from "@/components/accounts/equimanege-link-card";
+import { requireUser } from "@/lib/auth-guards";
 import {
   PRIORITY_LABELS,
   type CallStatus,
@@ -73,6 +75,9 @@ export default async function AccountDetailPage({
   params,
 }: PageProps<"/accounts/[id]">) {
   const { id } = await params;
+
+  const user = await requireUser();
+  const isAdmin = user.role === "admin";
 
   const parsedId = idSchema.safeParse(id);
   if (!parsedId.success) notFound();
@@ -289,6 +294,14 @@ export default async function AccountDetailPage({
         </div>
 
         <div className="flex flex-col gap-6">
+          {isAdmin ? (
+            <EquimanegeLinkCard
+              accountId={account.id}
+              accountName={account.name}
+              equimanegeManegeId={account.equimanegeManegeId}
+            />
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
