@@ -124,4 +124,5 @@ export const accountSnapshots = pgTable("account_snapshots", {
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
+export type NewActivity = typeof activities.$inferInsert;
 export type CmsUser = typeof cmsUsers.$inferSelect;

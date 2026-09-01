@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -34,10 +35,17 @@ export function CallStatusSelect({
   const [isPending, startTransition] = useTransition();
 
   function handleChange(itemValue: string) {
+    const previousStatus = optimisticValue;
     const nextStatus = fromItemValue(itemValue);
     setOptimisticValue(nextStatus);
     startTransition(async () => {
-      await updateCallStatus(accountId, nextStatus);
+      try {
+        await updateCallStatus(accountId, nextStatus);
+        toast.success("Belstatus bijgewerkt");
+      } catch {
+        setOptimisticValue(previousStatus);
+        toast.error("Belstatus bijwerken mislukt");
+      }
     });
   }
 
