@@ -7,87 +7,20 @@ import {
 import { HealthBadge } from "@/components/accounts/health-badge";
 import { KpiSyncButton } from "@/components/accounts/kpi-sync-button";
 import { Sparkline } from "@/components/accounts/sparkline";
+import { DeltaBadge } from "@/components/accounts/delta-badge";
 import { computeHealthScore } from "@/lib/health-score";
-import { buildKpiSeries, deltaPct, type KpiSnapshotLike } from "@/lib/kpi-series";
+import { buildKpiSeries, deltaPct, findClosestSnapshot } from "@/lib/kpi-series";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
-import { cn } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDateTimeNl,
+  formatDecimal,
+  formatInt,
+  formatPercent,
+  formatRelativeNl,
+} from "@/lib/format-nl";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const numberFormatter = new Intl.NumberFormat("nl-BE");
-const decimalFormatter = new Intl.NumberFormat("nl-BE", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-const currencyFormatter = new Intl.NumberFormat("nl-BE", {
-  style: "currency",
-  currency: "EUR",
-});
-const dateTimeFormatter = new Intl.DateTimeFormat("nl-BE", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function formatInt(value: number): string {
-  return numberFormatter.format(value);
-}
-
-function formatDecimal(value: number): string {
-  return decimalFormatter.format(value);
-}
-
-function formatPercent(fraction: number): string {
-  return `${Math.round(fraction * 100)}%`;
-}
-
-function formatCurrency(value: number): string {
-  return currencyFormatter.format(value);
-}
-
-function formatDateTimeNl(date: Date): string {
-  return dateTimeFormatter.format(date);
-}
-
-function formatRelativeNl(isoDate: string | null, now: Date): string {
-  if (!isoDate) return "Nooit actief geweest";
-
-  const date = new Date(isoDate);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.round(diffMs / (1000 * 60));
-  const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.round(diffMs / DAY_MS);
-
-  if (diffMinutes < 1) return "Zojuist";
-  if (diffMinutes < 60) return `${diffMinutes} min geleden`;
-  if (diffHours < 24) return `${diffHours} uur geleden`;
-  if (diffDays === 1) return "Gisteren";
-  if (diffDays < 30) return `${diffDays} dagen geleden`;
-
-  const diffMonths = Math.round(diffDays / 30);
-  if (diffMonths < 12) {
-    return `${diffMonths} ${diffMonths === 1 ? "maand" : "maanden"} geleden`;
-  }
-
-  const diffYears = Math.round(diffDays / 365);
-  return `${diffYears} jaar geleden`;
-}
-
-function findClosestSnapshot(
-  snapshots: KpiSnapshotLike[],
-  targetMs: number,
-): KpiSnapshotLike | null {
-  if (snapshots.length === 0) return null;
-  let closest = snapshots[0];
-  let closestDiff = Math.abs(closest.capturedAt.getTime() - targetMs);
-  for (const snapshot of snapshots) {
-    const diff = Math.abs(snapshot.capturedAt.getTime() - targetMs);
-    if (diff < closestDiff) {
-      closest = snapshot;
-      closestDiff = diff;
-    }
-  }
-  return closest;
-}
 
 function KpiGroupCard({
   title,
@@ -107,34 +40,6 @@ function KpiGroupCard({
         {children}
       </CardContent>
     </Card>
-  );
-}
-
-function DeltaBadge({
-  delta,
-  upIsGood,
-}: {
-  delta: number | null;
-  upIsGood: boolean;
-}) {
-  if (delta === null || Math.round(delta) === 0) {
-    return (
-      <span className="w-11 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-        =
-      </span>
-    );
-  }
-
-  const isUp = delta > 0;
-  const isGood = isUp === upIsGood;
-  const colorClass = isGood
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-red-600 dark:text-red-400";
-
-  return (
-    <span className={cn("w-11 shrink-0 text-right text-xs tabular-nums", colorClass)}>
-      {isUp ? "↑" : "↓"} {Math.abs(Math.round(delta))}%
-    </span>
   );
 }
 

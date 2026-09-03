@@ -29,6 +29,12 @@ export function AppHeader({ user }: { user: SessionUser }) {
           >
             Lijst
           </Link>
+          <Link
+            href="/klanten"
+            className="text-foreground/80 transition-colors hover:text-foreground"
+          >
+            Klanten
+          </Link>
           {user.role === "admin" ? (
             <Link
               href="/beheer"
