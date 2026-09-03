@@ -13,7 +13,7 @@ import { KlantCard, type KlantCardData } from "@/components/klanten/klant-card";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Klanten — EquiManage CMS",
+  title: "Klanten — EquiManage CRM",
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;

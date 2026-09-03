@@ -4,7 +4,7 @@ import logo from "@/assets/logo.webp";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "Inloggen — EquiManage CMS",
+  title: "Inloggen — EquiManage CRM",
 };
 
 export default function LoginPage() {
@@ -21,10 +21,10 @@ export default function LoginPage() {
         />
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight">
-            EquiManage <span className="text-muted-foreground">CMS</span>
+            EquiManage <span className="text-muted-foreground">CRM</span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Meld je aan met je CMS-account.
+            Meld je aan met je CRM-account.
           </p>
         </div>
       </div>

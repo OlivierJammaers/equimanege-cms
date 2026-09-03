@@ -10,7 +10,7 @@ import { UsersTable } from "@/components/admin/users-table";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Gebruikers — EquiManege CMS",
+  title: "Gebruikers — EquiManage CRM",
 };
 
 export default async function UsersPage() {
@@ -34,7 +34,7 @@ export default async function UsersPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Gebruikers</h1>
           <p className="text-sm text-muted-foreground">
-            Beheer sales- en adminaccounts voor de CMS.
+            Beheer sales- en adminaccounts voor het CRM.
           </p>
         </div>
         <AddSalesUserDialog />

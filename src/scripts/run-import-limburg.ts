@@ -14,7 +14,7 @@ const DEFAULT_HTML_PATH =
  * op de unieke index (name, gemeente) — zie `accounts_name_gemeente_uq` in
  * src/db/schema.ts.
  *
- * Overschrijft bij een conflict alléén de bronvelden. De CMS-trackingvelden
+ * Overschrijft bij een conflict alléén de bronvelden. De CRM-trackingvelden
  * (callStatus, nextActionDate, isDone, assignedTo, type,
  * equimanegeManegeId) worden nooit aangeraakt bij een update, zodat een
  * herimport nooit sales-voortgang wist.

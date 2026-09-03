@@ -11,7 +11,7 @@ import { NewAccountButton } from "@/components/accounts/new-account-button";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Prospecten — EquiManage CMS",
+  title: "Prospecten — EquiManage CRM",
 };
 
 export default async function AccountsListPage() {

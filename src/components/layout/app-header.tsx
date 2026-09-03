@@ -18,7 +18,7 @@ export function AppHeader({ user }: { user: SessionUser }) {
             className="rounded-md"
           />
           <span>
-            EquiManage <span className="text-muted-foreground">CMS</span>
+            EquiManage <span className="text-muted-foreground">CRM</span>
           </span>
         </Link>
 
