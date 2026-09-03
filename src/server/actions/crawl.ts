@@ -44,6 +44,21 @@ export async function startCrawlRun(country: string, region: string) {
     throw new Error("Onbekende regio voor dit land.");
   }
 
+  // Fix 3 (final review): maximaal één actieve run tegelijk. Dit maakt het
+  // cross-run-gedrag van `processNextJob` (die de oudste pending job over
+  // alle `running` runs heen pakt, zie PART 2-report) onschadelijk — er is
+  // per definitie nooit meer dan één `running` run om uit te putten.
+  const [activeRun] = await db
+    .select({ id: crawlRuns.id })
+    .from(crawlRuns)
+    .where(eq(crawlRuns.status, "running"))
+    .limit(1);
+  if (activeRun) {
+    throw new Error(
+      "Er draait al een onderzoek — wacht tot het klaar is of pauzeer het eerst.",
+    );
+  }
+
   const [inserted] = await db
     .insert(crawlRuns)
     .values({
