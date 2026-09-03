@@ -25,6 +25,11 @@ const LINKS = [
     title: "Import",
     description: "Prospecten importeren uit de Limburg-belllijst.",
   },
+  {
+    href: "/beheer/crawl",
+    title: "AI-onderzoek",
+    description: "Een land + provincie laten onderzoeken op nieuwe prospecten.",
+  },
 ];
 
 export default async function BeheerLandingPage() {
