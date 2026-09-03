@@ -17,6 +17,7 @@
     "import:limburg": "tsx src/scripts/run-import-limburg.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@neondatabase/serverless": "^1.1.0",
     "@tanstack/react-table": "^9.2.4",
     "bcryptjs": "^3.0.3",

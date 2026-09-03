@@ -20,8 +20,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Dummy-env ook voor de unit-tests: sommige modules (o.a. de
+      # crawl-onderzoeksmodule) importeren `@/env`, dat bij import valideert.
+      # De tests zelf raken nooit een database of API.
       - name: Vitest
         run: npm run test
+        env:
+          DATABASE_URL: postgres://user:pass@localhost:5432/dummy
+          DATABASE_URL_UNPOOLED: postgres://user:pass@localhost:5432/dummy
+          AUTH_SECRET: dummy-ci-secret-not-used-at-runtime
 
       # De app gebruikt @neondatabase/serverless (neon-http), dat alleen
       # tegen Neon's HTTP-proxy werkt — een lokale Postgres-service (of

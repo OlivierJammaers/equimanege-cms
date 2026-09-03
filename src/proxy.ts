@@ -15,7 +15,12 @@ export const { auth } = NextAuth(authConfig);
 export const proxy = auth;
 
 export const config = {
-  // api/cron uitgezonderd: die routes beveiligen zichzelf met CRON_SECRET
-  // (Vercel-cron heeft geen login-sessie en zou anders naar /login redirecten).
-  matcher: ["/((?!login|api/auth|api/cron|_next|favicon).*)"],
+  // api/cron en api/crawl uitgezonderd: die routes beveiligen zichzelf met
+  // CRON_SECRET/admin-check (src/app/api/cron/kpi-sync/route.ts,
+  // src/app/api/crawl/process/route.ts) — Vercel-cron heeft geen
+  // login-sessie en zou anders naar /login redirecten. Admin-sessie-
+  // aanroepen (de crawl-run-driver) hebben wél een sessiecookie, dus die
+  // passeren de proxy sowieso zonder redirect; de uitzondering is puur voor
+  // de cron-aanroepen zonder sessie.
+  matcher: ["/((?!login|api/auth|api/cron|api/crawl|_next|favicon).*)"],
 };
