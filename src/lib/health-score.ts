@@ -15,6 +15,15 @@ function worse(a: HealthLevel, b: HealthLevel): HealthLevel {
 }
 
 /**
+ * Ernst-rang van een gezondheidsniveau (rood > oranje > groen), voor het
+ * sorteren van het Klanten-dashboard: wie aandacht nodig heeft staat
+ * bovenaan. Puur getal, geen betekenis buiten sorteren.
+ */
+export function healthLevelRank(level: HealthLevel): number {
+  return LEVEL_RANK[level];
+}
+
+/**
  * Pure gezondheidsscore-berekening op basis van het huidige KPI-blok
  * (`latest`) en optioneel een eerder blok (`previous`, meestal ~30d terug)
  * om trends te herkennen. "Ergste regel wint" voor het niveau; alle

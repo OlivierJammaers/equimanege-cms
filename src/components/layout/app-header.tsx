@@ -18,7 +18,7 @@ export function AppHeader({ user }: { user: SessionUser }) {
             className="rounded-md"
           />
           <span>
-            EquiManage <span className="text-muted-foreground">CMS</span>
+            EquiManage <span className="text-muted-foreground">CRM</span>
           </span>
         </Link>
 
@@ -28,6 +28,12 @@ export function AppHeader({ user }: { user: SessionUser }) {
             className="text-foreground/80 transition-colors hover:text-foreground"
           >
             Lijst
+          </Link>
+          <Link
+            href="/klanten"
+            className="text-foreground/80 transition-colors hover:text-foreground"
+          >
+            Klanten
           </Link>
           {user.role === "admin" ? (
             <Link

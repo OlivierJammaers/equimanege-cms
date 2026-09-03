@@ -38,3 +38,26 @@ export function deltaPct(series: number[]): number | null {
 export function daysAgoFromNow(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
+
+/**
+ * Zoekt de snapshot waarvan `capturedAt` het dichtst bij `targetMs` ligt
+ * (bv. "~30 dagen vóór de laatste snapshot", voor de vorige-periode-vergelijking
+ * in `computeHealthScore`). `null` bij een lege lijst. Gedeeld door
+ * `KpiDashboard` (accountdetail) en het Klanten-dashboard.
+ */
+export function findClosestSnapshot<T extends KpiSnapshotLike>(
+  snapshots: T[],
+  targetMs: number,
+): T | null {
+  if (snapshots.length === 0) return null;
+  let closest = snapshots[0];
+  let closestDiff = Math.abs(closest.capturedAt.getTime() - targetMs);
+  for (const snapshot of snapshots) {
+    const diff = Math.abs(snapshot.capturedAt.getTime() - targetMs);
+    if (diff < closestDiff) {
+      closest = snapshot;
+      closestDiff = diff;
+    }
+  }
+  return closest;
+}

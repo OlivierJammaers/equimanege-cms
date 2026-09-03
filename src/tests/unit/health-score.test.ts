@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { computeHealthScore } from "@/lib/health-score";
+import { computeHealthScore, healthLevelRank } from "@/lib/health-score";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
 
 function buildTenantBlock(overrides: {
@@ -227,4 +227,9 @@ test("combinatie van meerdere oranje-redenen blijft oranje", () => {
 
   expect(result.level).toBe("oranje");
   expect(result.reasons.length).toBe(3);
+});
+
+test("healthLevelRank: rood > oranje > groen (voor sorteren, ernstigste eerst)", () => {
+  expect(healthLevelRank("rood")).toBeGreaterThan(healthLevelRank("oranje"));
+  expect(healthLevelRank("oranje")).toBeGreaterThan(healthLevelRank("groen"));
 });

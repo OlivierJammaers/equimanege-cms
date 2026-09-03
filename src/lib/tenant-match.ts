@@ -1,6 +1,6 @@
 /**
  * Pure, dependency-vrije rangschikking van EquiManage-tenants op naamsgelijkenis
- * met een CMS-accountnaam. Gebruikt door de koppel-dialoog (C2) om suggesties
+ * met een CRM-accountnaam. Gebruikt door de koppel-dialoog (C2) om suggesties
  * bovenaan te tonen. Geen fuzzy/Levenshtein-library — bewust simpel gehouden:
  *
  * 1. Exacte match (case/whitespace-ongevoelig) op naam of company_name → 100.

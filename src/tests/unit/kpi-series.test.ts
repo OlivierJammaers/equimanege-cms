@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { buildKpiSeries, deltaPct } from "@/lib/kpi-series";
+import { buildKpiSeries, deltaPct, findClosestSnapshot } from "@/lib/kpi-series";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
 
 function buildTenantBlock(activeMembers: number): KpiTenantBlock {
@@ -97,4 +97,29 @@ test("deltaPct: minder dan 2 punten geeft null", () => {
 
 test("deltaPct: eerste waarde 0 geeft null (delen door nul)", () => {
   expect(deltaPct([0, 10])).toBeNull();
+});
+
+test("findClosestSnapshot: kiest de snapshot met de kleinste tijdsafstand tot het doel", () => {
+  const snapshots = [
+    { capturedAt: new Date("2026-08-01T00:00:00Z"), kpis: buildTenantBlock(10) },
+    { capturedAt: new Date("2026-08-15T00:00:00Z"), kpis: buildTenantBlock(20) },
+    { capturedAt: new Date("2026-08-28T00:00:00Z"), kpis: buildTenantBlock(30) },
+  ];
+  const target = new Date("2026-08-16T00:00:00Z").getTime();
+
+  const closest = findClosestSnapshot(snapshots, target);
+
+  expect(closest?.kpis.members.active).toBe(20);
+});
+
+test("findClosestSnapshot: lege lijst geeft null", () => {
+  expect(findClosestSnapshot([], Date.now())).toBeNull();
+});
+
+test("findClosestSnapshot: enkel element wordt altijd teruggegeven", () => {
+  const snapshots = [
+    { capturedAt: new Date("2026-08-01T00:00:00Z"), kpis: buildTenantBlock(5) },
+  ];
+  const closest = findClosestSnapshot(snapshots, new Date("2020-01-01").getTime());
+  expect(closest?.kpis.members.active).toBe(5);
 });

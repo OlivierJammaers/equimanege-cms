@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EquiManege CMS",
+  title: "EquiManage CRM",
   description: "Interne sales-CRM voor EquiManege",
 };
 

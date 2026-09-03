@@ -11,7 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Beheer — EquiManege CMS",
+  title: "Beheer — EquiManage CRM",
 };
 
 const LINKS = [
@@ -34,7 +34,7 @@ export default async function BeheerLandingPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Beheer</h1>
-        <p className="text-sm text-muted-foreground">Adminfuncties voor de CMS.</p>
+        <p className="text-sm text-muted-foreground">Adminfuncties voor het CRM.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

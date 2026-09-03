@@ -11,7 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Import — EquiManege CMS",
+  title: "Import — EquiManage CRM",
 };
 
 export default async function ImportPage() {
