@@ -5,6 +5,24 @@ import { z } from "zod";
  * (`GET /internal/cms-kpis`, zie docs/superpowers/plans/2026-09-01-fase2-kpi-integratie.md
  * onder "Global Constraints"). Getallen kunnen als int of float binnenkomen.
  */
+/**
+ * Eén 24h/7d/30d-venster uit het optionele `windows`-blok (backend PR #26,
+ * `equimanege-backend`). Ontbreekt op oudere snapshots — vandaar `.optional()`
+ * op `windows` in `kpiTenantBlockSchema`, niet op dit sub-schema zelf.
+ */
+export const kpiWindowSchema = z.object({
+  completed_lessons: z.number(),
+  cancelled_lessons: z.number(),
+  avg_participants: z.number(),
+  occupancy_rate: z.number(),
+  new_members: z.number(),
+  invoiced: z.number(),
+  invoices_paid: z.number(),
+  announcements: z.number(),
+  chat_messages: z.number(),
+  active_push_devices: z.number(),
+});
+
 export const kpiTenantBlockSchema = z.object({
   tenant: z.object({
     id: z.number(),
@@ -56,6 +74,14 @@ export const kpiTenantBlockSchema = z.object({
     groups: z.number(),
     invoicing_in_use: z.boolean(),
   }),
+  // Optioneel: ontbreekt op snapshots die vóór backend PR #26 zijn opgeslagen.
+  windows: z
+    .object({
+      "24h": kpiWindowSchema,
+      "7d": kpiWindowSchema,
+      "30d": kpiWindowSchema,
+    })
+    .optional(),
 });
 
 export const kpiResponseSchema = z.object({
@@ -65,3 +91,4 @@ export const kpiResponseSchema = z.object({
 
 export type KpiTenantBlock = z.infer<typeof kpiTenantBlockSchema>;
 export type KpiResponse = z.infer<typeof kpiResponseSchema>;
+export type KpiWindow = z.infer<typeof kpiWindowSchema>;

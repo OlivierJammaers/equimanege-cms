@@ -7,22 +7,9 @@ import { db } from "@/db";
 import { accounts, accountSnapshots } from "@/db/schema";
 import { requireUser } from "@/lib/auth-guards";
 import { computeHealthScore } from "@/lib/health-score";
-import { HealthBadge } from "@/components/accounts/health-badge";
-import {
-  buildKpiSeries,
-  daysAgoFromNow,
-  deltaPct,
-  findClosestSnapshot,
-} from "@/lib/kpi-series";
+import { daysAgoFromNow, findClosestSnapshot } from "@/lib/kpi-series";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
-import type { ChartPoint } from "@/lib/chart-scale";
-import {
-  formatCurrency,
-  formatDateTimeNl,
-  formatDecimal,
-  formatInt,
-} from "@/lib/format-nl";
-import { MetricChartCard } from "@/components/klanten/metric-chart-card";
+import { KlantKpiCharts } from "@/components/klanten/klant-kpi-charts";
 import { Card, CardContent } from "@/components/ui/card";
 
 // Leest rechtstreeks uit de DB — nooit statisch prerenderen.
@@ -32,16 +19,6 @@ const idSchema = z.string().uuid();
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 type SnapshotRow = { capturedAt: Date; kpis: KpiTenantBlock };
-
-function toChartPoints(
-  snapshots: SnapshotRow[],
-  pick: (kpis: KpiTenantBlock) => number,
-): ChartPoint[] {
-  return snapshots.map((snapshot) => ({
-    date: snapshot.capturedAt,
-    value: pick(snapshot.kpis),
-  }));
-}
 
 export default async function KlantDetailPage({
   params,
@@ -138,85 +115,10 @@ export default async function KlantDetailPage({
   );
   const health = computeHealthScore(latest, previousSnapshot?.kpis ?? null, now);
 
-  const windowStartMs = latestSnapshot.capturedAt.getTime() - 30 * DAY_MS;
-  const last30d = snapshots.filter(
-    (snapshot) => snapshot.capturedAt.getTime() >= windowStartMs,
-  );
-
-  function deltaFor(pick: (kpis: KpiTenantBlock) => number): number | null {
-    return deltaPct(buildKpiSeries(last30d, pick));
-  }
-
-  const occupancyPoints = toChartPoints(
-    snapshots,
-    (k) => k.lessons.occupancy_rate_30d * 100,
-  );
-
   return (
     <div className="flex flex-col gap-6">
       {header}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <HealthBadge level={health.level} reasons={health.reasons} />
-        </div>
-        <span className="text-xs text-muted-foreground">
-          Laatste sync: {formatDateTimeNl(latestSnapshot.capturedAt)}
-        </span>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricChartCard
-          title="Actieve leden"
-          currentValueLabel={formatInt(latest.members.active)}
-          delta={deltaFor((k) => k.members.active)}
-          points={toChartPoints(snapshots, (k) => k.members.active)}
-          yFormat={formatInt}
-        />
-
-        <MetricChartCard
-          title="Geplande & voltooide lessen"
-          currentValueLabel={formatInt(latest.lessons.upcoming)}
-          delta={deltaFor((k) => k.lessons.upcoming)}
-          points={toChartPoints(snapshots, (k) => k.lessons.upcoming)}
-          series2={toChartPoints(snapshots, (k) => k.lessons.completed_30d)}
-          seriesLabels={{ primary: "Gepland", secondary: "Voltooid (30d)" }}
-          yFormat={formatInt}
-        />
-
-        <MetricChartCard
-          title="Bezettingsgraad (30d)"
-          currentValueLabel={`${Math.round(latest.lessons.occupancy_rate_30d * 100)}%`}
-          delta={deltaFor((k) => k.lessons.occupancy_rate_30d)}
-          points={occupancyPoints}
-          yFormat={(value) => `${Math.round(value)}%`}
-          yDomain={[0, 100]}
-        />
-
-        <MetricChartCard
-          title="Gefactureerd (30d)"
-          currentValueLabel={formatCurrency(latest.commercial.invoiced_30d)}
-          delta={deltaFor((k) => k.commercial.invoiced_30d)}
-          points={toChartPoints(snapshots, (k) => k.commercial.invoiced_30d)}
-          yFormat={formatCurrency}
-        />
-
-        <MetricChartCard
-          title="Actieve pushdevices"
-          currentValueLabel={formatInt(latest.engagement.active_push_devices_30d)}
-          delta={deltaFor((k) => k.engagement.active_push_devices_30d)}
-          points={toChartPoints(snapshots, (k) => k.engagement.active_push_devices_30d)}
-          yFormat={formatInt}
-        />
-
-        <MetricChartCard
-          title="Gem. deelnemers per les"
-          currentValueLabel={formatDecimal(latest.lessons.avg_participants_30d)}
-          delta={deltaFor((k) => k.lessons.avg_participants_30d)}
-          points={toChartPoints(snapshots, (k) => k.lessons.avg_participants_30d)}
-          yFormat={formatDecimal}
-        />
-      </div>
+      <KlantKpiCharts snapshots={snapshots} health={health} />
     </div>
   );
 }
