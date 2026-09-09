@@ -186,6 +186,9 @@ export async function createAccount(input: AccountFormInput) {
       contactPerson: parsed.contactPerson,
       source: "Handmatig toegevoegd",
       country: "BE",
+      // Handmatig aangemaakte accounts zijn meteen zichtbaar voor de
+      // aanmaker (vrijgave-per-25 geldt alleen voor de bulk-import).
+      releasedAt: new Date(),
     })
     .returning({ id: accounts.id });
 

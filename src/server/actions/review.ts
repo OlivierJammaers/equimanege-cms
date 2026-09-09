@@ -55,7 +55,9 @@ async function approveOne(
 
   const inserted = await db
     .insert(accounts)
-    .values(insertValues)
+    // Direct via review goedgekeurde accounts zijn meteen zichtbaar voor de
+    // goedkeurder (vrijgave-per-25 geldt alleen voor de bulk-import).
+    .values({ ...insertValues, releasedAt: new Date() })
     .onConflictDoNothing({ target: [accounts.name, accounts.gemeente] })
     .returning({ id: accounts.id });
 
