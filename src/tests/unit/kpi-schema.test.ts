@@ -139,6 +139,73 @@ test("kpiResponseSchema weigert een ontbrekende generated_at", () => {
   expect(result.success).toBe(false);
 });
 
+function buildWindow(overrides: Record<string, unknown> = {}) {
+  return {
+    completed_lessons: 3,
+    cancelled_lessons: 0,
+    avg_participants: 4.2,
+    occupancy_rate: 0.6,
+    new_members: 1,
+    invoiced: 250,
+    invoices_paid: 2,
+    announcements: 1,
+    chat_messages: 12,
+    active_push_devices: 5,
+    ...overrides,
+  };
+}
+
+test("kpiTenantBlockSchema aanvaardt een blok zonder windows (oude snapshot)", () => {
+  const block = buildTenantBlock();
+  expect("windows" in block).toBe(false);
+  const result = kpiTenantBlockSchema.safeParse(block);
+  expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data.windows).toBeUndefined();
+  }
+});
+
+test("kpiTenantBlockSchema aanvaardt een blok mét windows (24h/7d/30d)", () => {
+  const block = buildTenantBlock({
+    windows: {
+      "24h": buildWindow({ completed_lessons: 0 }),
+      "7d": buildWindow({ completed_lessons: 2 }),
+      "30d": buildWindow({ completed_lessons: 8 }),
+    },
+  });
+  const result = kpiTenantBlockSchema.safeParse(block);
+  expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data.windows?.["24h"].completed_lessons).toBe(0);
+    expect(result.data.windows?.["7d"].completed_lessons).toBe(2);
+    expect(result.data.windows?.["30d"].completed_lessons).toBe(8);
+  }
+});
+
+test("kpiTenantBlockSchema weigert windows met een ontbrekende sleutel", () => {
+  const block = buildTenantBlock({
+    windows: {
+      "24h": buildWindow(),
+      "7d": buildWindow(),
+      // "30d" ontbreekt
+    },
+  });
+  const result = kpiTenantBlockSchema.safeParse(block);
+  expect(result.success).toBe(false);
+});
+
+test("kpiTenantBlockSchema weigert een venster met een verkeerd type", () => {
+  const block = buildTenantBlock({
+    windows: {
+      "24h": buildWindow({ completed_lessons: "0" }),
+      "7d": buildWindow(),
+      "30d": buildWindow(),
+    },
+  });
+  const result = kpiTenantBlockSchema.safeParse(block);
+  expect(result.success).toBe(false);
+});
+
 test("kpiResponseSchema weigert wanneer tenants geen array is", () => {
   const result = kpiResponseSchema.safeParse({
     generated_at: "2026-09-01T05:00:00Z",
