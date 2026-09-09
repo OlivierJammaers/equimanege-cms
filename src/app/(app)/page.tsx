@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { eq, or, sql } from "drizzle-orm";
+import { desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { accounts, activities, cmsUsers } from "@/db/schema";
 import { computeListStats } from "@/lib/stats";
 import { requireUser } from "@/lib/auth-guards";
 import { StatsTiles } from "@/components/accounts/stats-tiles";
@@ -27,6 +27,21 @@ export default async function AccountsListPage() {
     ? undefined
     : or(sql`${accounts.releasedAt} IS NOT NULL`, eq(accounts.type, "customer"));
 
+  // Laatste activiteit per account (voor de "Laatste activiteit"-kolom +
+  // filter): de meest recente comment/call/status_change, met de naam van
+  // de auteur. `selectDistinctOn` pakt per account enkel de nieuwste rij —
+  // een JOIN met deze subquery is goedkoper dan een window-functie hier.
+  const lastActivityPerAccount = db
+    .selectDistinctOn([activities.accountId], {
+      accountId: activities.accountId,
+      createdAt: activities.createdAt,
+      userId: activities.userId,
+    })
+    .from(activities)
+    .where(inArray(activities.type, ["comment", "call", "status_change"]))
+    .orderBy(activities.accountId, desc(activities.createdAt))
+    .as("last_activity_per_account");
+
   // Bewust alléén de lijst-kolommen selecteren: de lange narratieve velden
   // (opener, aanbod, infrastructuur, …) maken de payload van 453 rijen
   // onnodig zwaar en horen bij het detail.
@@ -45,8 +60,15 @@ export default async function AccountsListPage() {
       callStatus: accounts.callStatus,
       nextActionDate: accounts.nextActionDate,
       isDone: accounts.isDone,
+      lastActivityAt: lastActivityPerAccount.createdAt,
+      lastActivityBy: cmsUsers.name,
     })
     .from(accounts)
+    .leftJoin(
+      lastActivityPerAccount,
+      eq(lastActivityPerAccount.accountId, accounts.id),
+    )
+    .leftJoin(cmsUsers, eq(cmsUsers.id, lastActivityPerAccount.userId))
     .orderBy(accounts.priority, accounts.name);
   const rows = visibilityFilter
     ? await rowsQuery.where(visibilityFilter)

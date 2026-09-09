@@ -18,6 +18,10 @@ function toExportRow(account: AccountListRow): Record<string, unknown> {
     Belstatus: CALL_STATUS_LABELS[account.callStatus],
     "Volgende actie": account.nextActionDate ?? "",
     Afgehandeld: account.isDone ? "ja" : "nee",
+    "Laatste activiteit": account.lastActivityAt
+      ? account.lastActivityAt.toISOString()
+      : "",
+    Door: account.lastActivityBy ?? "",
   };
 }
 

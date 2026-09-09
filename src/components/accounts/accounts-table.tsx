@@ -15,6 +15,7 @@ import {
   createSortedRowModel,
   rowSortingFeature,
   sortFn_alphanumeric,
+  sortFn_datetime,
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
@@ -44,6 +45,11 @@ import {
   type CallStatus,
   type Priority,
 } from "@/lib/constants";
+import { formatLastActivityNl } from "@/lib/format-nl";
+import {
+  matchesActivityWindow,
+  type ActivityWindow,
+} from "@/lib/activity-window";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Account } from "@/db/schema";
@@ -69,7 +75,12 @@ export type AccountListRow = Pick<
   | "callStatus"
   | "nextActionDate"
   | "isDone"
->;
+> & {
+  /** Meest recente comment/call/status_change-activiteit; null = nooit. */
+  lastActivityAt: Date | null;
+  /** Naam van de auteur van die meest recente activiteit; null = nooit. */
+  lastActivityBy: string | null;
+};
 
 const PAGE_SIZE = 50;
 
@@ -79,10 +90,18 @@ const ALL_SENTINEL = "__alle__";
 // van ALL_SENTINEL, anders is "nog niet gebeld" niet los filterbaar van "alle".
 const STATUS_EMPTY_SENTINEL = "__status_leeg__";
 
+const ACTIVITY_WINDOW_OPTIONS: { value: ActivityWindow; label: string }[] = [
+  { value: "all", label: "Alle activiteit" },
+  { value: "24h", label: "Vandaag" },
+  { value: "7d", label: "Laatste 7 dagen" },
+  { value: "30d", label: "Laatste 30 dagen" },
+  { value: "none", label: "Geen activiteit" },
+];
+
 const features = tableFeatures({
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
-  sortFns: { alphanumeric: sortFn_alphanumeric },
+  sortFns: { alphanumeric: sortFn_alphanumeric, datetime: sortFn_datetime },
 });
 
 const columnHelper = createColumnHelper<typeof features, AccountListRow>();
@@ -185,6 +204,29 @@ const columns = columnHelper.columns([
     sortFn: "alphanumeric",
     cell: (info) => info.getValue() ?? "—",
   }),
+  // accessorFn i.p.v. accessor("lastActivityAt", …): `sortUndefined: "last"`
+  // vereist `undefined` i.p.v. `null` om nulls-last af te dwingen ongeacht
+  // sorteerrichting (zie createSortedRowModel: die tak negeert `isDesc`
+  // niet). De cel rendert vanuit `info.row.original`, dus dat blijft `null`.
+  columnHelper.accessor((row) => row.lastActivityAt ?? undefined, {
+    id: "lastActivityAt",
+    header: "Laatste activiteit",
+    sortFn: "datetime",
+    sortUndefined: "last",
+    cell: (info) => {
+      const account = info.row.original;
+      return (
+        <div className="flex flex-col">
+          <span>{formatLastActivityNl(account.lastActivityAt, new Date())}</span>
+          {account.lastActivityBy ? (
+            <span className="text-xs text-muted-foreground">
+              {account.lastActivityBy}
+            </span>
+          ) : null}
+        </div>
+      );
+    },
+  }),
 ]);
 
 function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
@@ -199,6 +241,7 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
   const [priorityFilter, setPriorityFilter] = useState<string>(ALL_SENTINEL);
   const [gemeenteFilter, setGemeenteFilter] = useState<string>(ALL_SENTINEL);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_SENTINEL);
+  const [activityFilter, setActivityFilter] = useState<ActivityWindow>("all");
   const [hideDone, setHideDone] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -210,6 +253,7 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
     priorityFilter,
     gemeenteFilter,
     statusFilter,
+    activityFilter,
     hideDone,
   ].join("|");
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
@@ -228,6 +272,9 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
+    // Eén "now" voor de hele filterpas — voorkomt dat rijen tijdens het
+    // filteren in/uit een venster schuiven door een tikkende klok.
+    const now = new Date();
 
     return rows.filter((row) => {
       if (hideDone && row.isDone) return false;
@@ -244,6 +291,10 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
         const effectiveStatusFilter =
           statusFilter === STATUS_EMPTY_SENTINEL ? "" : statusFilter;
         if (row.callStatus !== effectiveStatusFilter) return false;
+      }
+
+      if (!matchesActivityWindow(row.lastActivityAt, activityFilter, now)) {
+        return false;
       }
 
       if (query) {
@@ -263,7 +314,15 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
 
       return true;
     });
-  }, [rows, search, priorityFilter, gemeenteFilter, statusFilter, hideDone]);
+  }, [
+    rows,
+    search,
+    priorityFilter,
+    gemeenteFilter,
+    statusFilter,
+    activityFilter,
+    hideDone,
+  ]);
 
   const table = useTable({
     features,
@@ -335,6 +394,22 @@ export function AccountsTable({ rows }: { rows: AccountListRow[] }) {
                 value={status === "" ? STATUS_EMPTY_SENTINEL : status}
               >
                 {CALL_STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={activityFilter}
+          onValueChange={(value) => setActivityFilter(value as ActivityWindow)}
+        >
+          <SelectTrigger size="sm" className="w-[170px]">
+            <SelectValue placeholder="Activiteit" />
+          </SelectTrigger>
+          <SelectContent>
+            {ACTIVITY_WINDOW_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>

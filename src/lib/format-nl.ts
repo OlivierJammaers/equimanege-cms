@@ -31,6 +31,15 @@ const dateShortFormatter = new Intl.DateTimeFormat("nl-BE", {
   month: "short",
 });
 
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+/** dd-mm-jjjj, in de lokale tijdzone van de gebruiker. */
+function formatDdMmYyyy(date: Date): string {
+  return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
+}
+
 export function formatInt(value: number): string {
   return numberFormatter.format(value);
 }
@@ -83,4 +92,29 @@ export function formatRelativeNl(isoDate: string | null, now: Date): string {
 
   const diffYears = Math.round(diffDays / 365);
   return `${diffYears} jaar geleden`;
+}
+
+/**
+ * Compacte relatieve tijd voor de "Laatste activiteit"-kolom
+ * (prospectenlijst): "zojuist" / "X min geleden" / "X u geleden" /
+ * "X d geleden" tot en met 30 dagen, daarna de absolute datum (dd-mm-jjjj).
+ * Bewust een apart, korter format dan `formatRelativeNl` (die "Nooit actief
+ * geweest" en het volledige "uur"/"dagen" gebruikt voor het KPI-dashboard en
+ * de klantenkaart) — geen gedeelde functie om die bestaande weergaves niet
+ * te wijzigen.
+ */
+export function formatLastActivityNl(date: Date | null, now: Date): string {
+  if (!date) return "—";
+
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / DAY_MS);
+
+  if (diffMinutes < 1) return "zojuist";
+  if (diffMinutes < 60) return `${diffMinutes} min geleden`;
+  if (diffHours < 24) return `${diffHours} u geleden`;
+  if (diffDays <= 30) return `${diffDays} d geleden`;
+
+  return formatDdMmYyyy(date);
 }
