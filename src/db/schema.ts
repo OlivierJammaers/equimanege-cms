@@ -111,12 +111,17 @@ export const accounts = pgTable(
     source: text("source"),
     onYourList: text("on_your_list"),
     opener: text("opener"),
+    // Vrijgave-per-25 (sales-zichtbaarheid): niet-NULL = zichtbaar voor sales.
+    // Sticky — eenmaal vrijgegeven blijft een prospect zichtbaar totdat een
+    // admin de batch expliciet terugtrekt (src/server/actions/release.ts).
+    releasedAt: timestamp("released_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     gemeenteIdx: index("accounts_gemeente_idx").on(t.gemeente),
     priorityIdx: index("accounts_priority_idx").on(t.priority),
+    releasedAtIdx: index("accounts_released_at_idx").on(t.releasedAt),
     // Conflict-target voor de idempotente Limburg-import-upsert
     // (src/scripts/run-import-limburg.ts).
     nameGemeenteUq: uniqueIndex("accounts_name_gemeente_uq").on(t.name, t.gemeente),

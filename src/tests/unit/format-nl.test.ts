@@ -5,6 +5,7 @@ import {
   formatDateShortNl,
   formatDecimal,
   formatInt,
+  formatLastActivityNl,
   formatPercent,
   formatRelativeNl,
 } from "@/lib/format-nl";
@@ -46,6 +47,68 @@ describe("formatRelativeNl", () => {
 
   test("jaren geleden", () => {
     expect(formatRelativeNl("2023-09-01T12:00:00Z", now)).toBe("3 jaar geleden");
+  });
+});
+
+describe("formatLastActivityNl", () => {
+  const now = new Date("2026-09-01T12:00:00Z");
+
+  test("null geeft '—'", () => {
+    expect(formatLastActivityNl(null, now)).toBe("—");
+  });
+
+  test("minder dan een minuut geleden geeft 'zojuist'", () => {
+    expect(formatLastActivityNl(new Date("2026-09-01T11:59:45Z"), now)).toBe(
+      "zojuist",
+    );
+  });
+
+  test("minuten geleden", () => {
+    expect(formatLastActivityNl(new Date("2026-09-01T11:45:00Z"), now)).toBe(
+      "15 min geleden",
+    );
+  });
+
+  test("exact één minuut geleden geeft '1 min geleden'", () => {
+    expect(formatLastActivityNl(new Date("2026-09-01T11:59:00Z"), now)).toBe(
+      "1 min geleden",
+    );
+  });
+
+  test("uren geleden", () => {
+    expect(formatLastActivityNl(new Date("2026-09-01T06:00:00Z"), now)).toBe(
+      "6 u geleden",
+    );
+  });
+
+  test("exact één uur geleden geeft '1 u geleden'", () => {
+    expect(formatLastActivityNl(new Date("2026-09-01T11:00:00Z"), now)).toBe(
+      "1 u geleden",
+    );
+  });
+
+  test("dagen geleden", () => {
+    expect(formatLastActivityNl(new Date("2026-08-30T12:00:00Z"), now)).toBe(
+      "2 d geleden",
+    );
+  });
+
+  test("exact 30 dagen geleden blijft relatief", () => {
+    expect(formatLastActivityNl(new Date("2026-08-02T12:00:00Z"), now)).toBe(
+      "30 d geleden",
+    );
+  });
+
+  test("meer dan 30 dagen geleden toont dd-mm-jjjj", () => {
+    expect(formatLastActivityNl(new Date("2026-07-01T12:00:00Z"), now)).toBe(
+      "01-07-2026",
+    );
+  });
+
+  test("veel langer geleden toont ook dd-mm-jjjj", () => {
+    expect(formatLastActivityNl(new Date("2023-01-15T12:00:00Z"), now)).toBe(
+      "15-01-2023",
+    );
   });
 });
 

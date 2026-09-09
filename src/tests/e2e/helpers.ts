@@ -19,9 +19,17 @@ export function getE2eCredentials(): { email: string; password: string } {
   return { email, password };
 }
 
-/** Logt in via het loginformulier en wacht tot de prospectenlijst laadt. */
-export async function login(page: Page): Promise<void> {
-  const { email, password } = getE2eCredentials();
+/**
+ * Logt in via het loginformulier en wacht tot de prospectenlijst laadt.
+ * Zonder argument worden de E2E_EMAIL/E2E_PASSWORD-omgevingsvariabelen
+ * gebruikt; geef `credentials` mee om als een andere (bv. tijdelijke)
+ * gebruiker in te loggen.
+ */
+export async function login(
+  page: Page,
+  credentials?: { email: string; password: string },
+): Promise<void> {
+  const { email, password } = credentials ?? getE2eCredentials();
 
   await page.goto("/login");
   await page.getByLabel("E-mailadres").fill(email);

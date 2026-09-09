@@ -95,6 +95,13 @@ export default async function AccountDetailPage({
 
   if (!account) notFound();
 
+  // Vrijgave-per-25: sales mag een niet-vrijgegeven prospect niet
+  // rechtstreeks openen via de URL (de lijst filtert ze al weg, maar de
+  // detailpagina zelf moet de regel ook afdwingen).
+  if (!isAdmin && account.type === "prospect" && account.releasedAt === null) {
+    notFound();
+  }
+
   const isLinkedCustomer =
     account.type === "customer" && account.equimanegeManegeId !== null;
 
