@@ -5,15 +5,26 @@ import { and, eq, gt, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, activities, availabilityWindows, meetings } from "@/db/schema";
 import { assertAdmin, requireUser } from "@/lib/auth-guards";
-import { formatDayLabelNl, formatTimeRangeNl, windowRangesFromInput } from "@/lib/meeting-utils";
+import { formatDayLabelNl, formatTimeNl, formatTimeRangeNl, windowRangesFromInput } from "@/lib/meeting-utils";
 import {
   bookMeetingSchema,
   createWindowsSchema,
+  firstIssueMessage,
   meetingIdSchema,
   windowIdSchema,
   type BookMeetingInput,
   type CreateWindowsInput,
 } from "@/lib/meeting-schemas";
+
+/**
+ * Discriminant-resultaattype voor de meeting-acties: user-facing
+ * validatie-/conflictfouten worden geretourneerd i.p.v. gethrowd. Reden:
+ * productie-Next.js maskeert thrown server-action-fouten (alleen een digest,
+ * geen message) — dat gaf een React #441-crash i.p.v. een nette toast. Enkel
+ * échte onverwachte/systeemfouten (DB down e.d.) mogen nog gooien; de
+ * auth-guards (`requireUser`/`assertAdmin`) redirecten zoals voorheen.
+ */
+export type ActionError = { error: string };
 
 const AGENDA_PATH = "/beheer/agenda";
 const MEETINGS_OVERVIEW_PATH = "/meetings";
@@ -60,29 +71,36 @@ function intervalsOverlap(a: { startsAt: Date; endsAt: Date }, b: { startsAt: Da
  * dezelfde dag (zowel onderling in deze aanvraag als tegen wat al in de DB
  * staat).
  */
-export async function createWindows(input: CreateWindowsInput) {
+export async function createWindows(
+  input: CreateWindowsInput,
+): Promise<{ count: number } | ActionError> {
   const user = await requireUser();
   assertAdmin(user);
 
-  const parsed = createWindowsSchema.parse(input);
-  const ranges = windowRangesFromInput(parsed.date, parsed.ranges);
+  const parsed = createWindowsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+  const ranges = windowRangesFromInput(parsed.data.date, parsed.data.ranges);
 
   const now = new Date();
   const pastRange = ranges.find((range) => range.startsAt.getTime() < now.getTime());
   if (pastRange) {
-    throw new Error("Je kan geen beschikbaarheid in het verleden toevoegen.");
+    return {
+      error: `Je kan geen beschikbaarheid in het verleden toevoegen. De starttijd (${formatTimeNl(pastRange.startsAt)}) is al voorbij.`,
+    };
   }
 
   for (let i = 0; i < ranges.length; i++) {
     for (let j = i + 1; j < ranges.length; j++) {
       if (intervalsOverlap(ranges[i], ranges[j])) {
-        throw new Error("Deze tijden overlappen met een bestaand beschikbaarheidsblok.");
+        return { error: "Deze tijden overlappen met een bestaand beschikbaarheidsblok." };
       }
     }
   }
 
-  const dayStart = new Date(`${parsed.date}T00:00:00.000Z`);
-  const dayEnd = new Date(`${parsed.date}T00:00:00.000Z`);
+  const dayStart = new Date(`${parsed.data.date}T00:00:00.000Z`);
+  const dayEnd = new Date(`${parsed.data.date}T00:00:00.000Z`);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 2); // ruime marge rond tijdzoneverschuivingen
 
   const existing = await db
@@ -98,7 +116,7 @@ export async function createWindows(input: CreateWindowsInput) {
 
   for (const range of ranges) {
     if (existing.some((row) => intervalsOverlap(range, row))) {
-      throw new Error("Deze tijden overlappen met een bestaand beschikbaarheidsblok.");
+      return { error: "Deze tijden overlappen met een bestaand beschikbaarheidsblok." };
     }
   }
 
@@ -121,18 +139,21 @@ export async function createWindows(input: CreateWindowsInput) {
  * moet die eerst laten annuleren) — een meeting heeft geen FK naar het
  * venster, dus dit is een tijdsbereik-overlapcheck.
  */
-export async function deleteWindow(windowId: string) {
+export async function deleteWindow(windowId: string): Promise<{ ok: true } | ActionError> {
   const user = await requireUser();
   assertAdmin(user);
 
-  const parsed = windowIdSchema.parse({ windowId });
+  const parsed = windowIdSchema.safeParse({ windowId });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
 
   const [window] = await db
     .select({ id: availabilityWindows.id, startsAt: availabilityWindows.startsAt, endsAt: availabilityWindows.endsAt })
     .from(availabilityWindows)
-    .where(eq(availabilityWindows.id, parsed.windowId))
+    .where(eq(availabilityWindows.id, parsed.data.windowId))
     .limit(1);
-  if (!window) throw new Error("Dit venster bestaat niet (meer).");
+  if (!window) return { error: "Dit venster bestaat niet (meer)." };
 
   const [overlappingMeeting] = await db
     .select({ id: meetings.id })
@@ -140,12 +161,14 @@ export async function deleteWindow(windowId: string) {
     .where(and(lt(meetings.startsAt, window.endsAt), gt(meetings.endsAt, window.startsAt)))
     .limit(1);
   if (overlappingMeeting) {
-    throw new Error("Er zijn al meetings geboekt binnen dit blok — annuleer die eerst.");
+    return { error: "Er zijn al meetings geboekt binnen dit blok — annuleer die eerst." };
   }
 
-  await db.delete(availabilityWindows).where(eq(availabilityWindows.id, parsed.windowId));
+  await db.delete(availabilityWindows).where(eq(availabilityWindows.id, parsed.data.windowId));
 
   revalidateMeetingPaths();
+
+  return { ok: true };
 }
 
 /**
@@ -157,72 +180,80 @@ export async function deleteWindow(windowId: string) {
  * boekingen die overlappen geven hier een PG-fout (23P01), opgevangen met
  * een vriendelijke NL-melding.
  */
-export async function bookMeeting(input: BookMeetingInput) {
+export async function bookMeeting(input: BookMeetingInput): Promise<{ ok: true } | ActionError> {
   const user = await requireUser();
 
-  const parsed = bookMeetingSchema.parse(input);
+  const parsed = bookMeetingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+  const data = parsed.data;
 
-  const startsAt = new Date(parsed.start);
-  const endsAt = new Date(startsAt.getTime() + parsed.durationMinutes * 60_000);
+  const startsAt = new Date(data.start);
+  const endsAt = new Date(startsAt.getTime() + data.durationMinutes * 60_000);
 
   if (startsAt.getTime() < Date.now()) {
-    throw new Error("Dit moment ligt in het verleden.");
+    return { error: "Dit moment ligt in het verleden." };
   }
 
   const [window] = await db
     .select({ id: availabilityWindows.id, startsAt: availabilityWindows.startsAt, endsAt: availabilityWindows.endsAt })
     .from(availabilityWindows)
-    .where(eq(availabilityWindows.id, parsed.windowId))
+    .where(eq(availabilityWindows.id, data.windowId))
     .limit(1);
-  if (!window) throw new Error("Dit beschikbaarheidsvenster bestaat niet (meer).");
+  if (!window) return { error: "Dit beschikbaarheidsvenster bestaat niet (meer)." };
 
   if (startsAt.getTime() < window.startsAt.getTime() || endsAt.getTime() > window.endsAt.getTime()) {
-    throw new Error("Dit tijdstip valt niet (volledig) binnen het gekozen venster.");
+    return { error: "Dit tijdstip valt niet (volledig) binnen het gekozen venster." };
   }
 
   const [account] = await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(eq(accounts.id, parsed.accountId))
+    .where(eq(accounts.id, data.accountId))
     .limit(1);
-  if (!account) throw new Error("Account niet gevonden");
+  if (!account) return { error: "Account niet gevonden" };
 
   try {
     await db.insert(meetings).values({
-      accountId: parsed.accountId,
+      accountId: data.accountId,
       startsAt,
       endsAt,
       bookedBy: user.id,
-      note: parsed.note,
+      note: data.note,
     });
   } catch (error) {
     if (isOverlapViolation(error)) {
-      throw new Error("Dit tijdstip overlapt met een andere meeting — kies een ander moment.");
+      return { error: "Dit tijdstip overlapt met een andere meeting — kies een ander moment." };
     }
     throw error;
   }
 
-  const body =
-    meetingActivityBody("ingepland", startsAt, endsAt) + (parsed.note ? ` — ${parsed.note}` : "");
+  const body = meetingActivityBody("ingepland", startsAt, endsAt) + (data.note ? ` — ${data.note}` : "");
 
   await db.insert(activities).values({
-    accountId: parsed.accountId,
+    accountId: data.accountId,
     userId: user.id,
     type: "meeting",
     body,
   });
 
-  revalidateMeetingPaths(parsed.accountId);
+  revalidateMeetingPaths(data.accountId);
+
+  return { ok: true };
 }
 
 /**
  * Annuleert een geboekte meeting: verwijdert de meeting-rij (die tijd komt
  * meteen weer vrij voor een nieuwe boeking) en logt de annulering.
  */
-export async function cancelMeeting(meetingId: string) {
+export async function cancelMeeting(meetingId: string): Promise<{ ok: true } | ActionError> {
   const user = await requireUser();
 
-  const parsed = meetingIdSchema.parse({ meetingId });
+  const parsed = meetingIdSchema.safeParse({ meetingId });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
 
   const [row] = await db
     .select({
@@ -232,11 +263,11 @@ export async function cancelMeeting(meetingId: string) {
       endsAt: meetings.endsAt,
     })
     .from(meetings)
-    .where(eq(meetings.id, parsed.meetingId))
+    .where(eq(meetings.id, parsed.data.meetingId))
     .limit(1);
-  if (!row) throw new Error("Meeting niet gevonden");
+  if (!row) return { error: "Meeting niet gevonden" };
 
-  await db.delete(meetings).where(eq(meetings.id, parsed.meetingId));
+  await db.delete(meetings).where(eq(meetings.id, parsed.data.meetingId));
 
   await db.insert(activities).values({
     accountId: row.accountId,
@@ -246,4 +277,6 @@ export async function cancelMeeting(meetingId: string) {
   });
 
   revalidateMeetingPaths(row.accountId);
+
+  return { ok: true };
 }

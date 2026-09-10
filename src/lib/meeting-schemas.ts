@@ -64,3 +64,15 @@ export const bookMeetingSchema = z.object({
 });
 
 export type BookMeetingInput = z.input<typeof bookMeetingSchema>;
+
+/**
+ * Haalt de melding van het eerste validatieprobleem uit een mislukte
+ * `schema.safeParse(...)`-aanroep — gebruikt door de meeting-server-actions
+ * om Zod-fouten als `{ error: string }` terug te geven i.p.v. te gooien (zie
+ * `src/server/actions/meetings.ts`; productie maskeert thrown server-action-
+ * fouten). Los van server-code gehouden zodat de extractie zonder
+ * DB/auth-runtime unit-testbaar is.
+ */
+export function firstIssueMessage(error: z.ZodError, fallback = "Ongeldige invoer."): string {
+  return error.issues[0]?.message ?? fallback;
+}
