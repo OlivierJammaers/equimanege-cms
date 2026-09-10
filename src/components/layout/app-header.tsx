@@ -1,9 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import logo from "@/assets/logo.webp";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { SessionUser } from "@/lib/auth-guards";
 
 export function AppHeader({
@@ -77,9 +83,14 @@ export function AppHeader({
               await signOut({ redirectTo: "/login" });
             }}
           >
-            <Button type="submit" variant="outline" size="sm">
-              Uitloggen
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="submit" variant="ghost" size="icon" aria-label="Uitloggen">
+                  <LogOut className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Uitloggen</TooltipContent>
+            </Tooltip>
           </form>
         </div>
       </div>
