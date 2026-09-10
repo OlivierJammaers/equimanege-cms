@@ -15,13 +15,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatSlotTimeNl } from "@/lib/meeting-utils";
+import { formatTimeRangeNl } from "@/lib/meeting-utils";
 import { cancelMeeting } from "@/server/actions/meetings";
 
 export type MeetingRow = {
   meetingId: string;
   startsAt: Date;
-  durationMinutes: number;
+  endsAt: Date;
   accountId: string;
   accountName: string;
   accountGemeente: string | null;
@@ -101,7 +101,7 @@ function MeetingRowCard({ meeting, showCancel }: { meeting: MeetingRow; showCanc
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="font-mono text-sm tabular-nums text-foreground">
-            {formatSlotTimeNl(meeting.startsAt, meeting.durationMinutes)}
+            {formatTimeRangeNl(meeting.startsAt, meeting.endsAt)}
           </span>
           <Link
             href={`/accounts/${meeting.accountId}`}

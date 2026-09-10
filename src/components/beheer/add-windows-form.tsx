@@ -7,21 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createSlots } from "@/server/actions/meetings";
+import { createWindows } from "@/server/actions/meetings";
 
-const DURATION_OPTIONS = [30, 45, 60, 90] as const;
-
-type TimeRow = {
+type RangeRow = {
   key: string;
-  start: string;
-  durationMinutes: number;
+  from: string;
+  to: string;
 };
 
 function todayIso(): string {
@@ -29,22 +20,23 @@ function todayIso(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-function newRow(): TimeRow {
-  return { key: crypto.randomUUID(), start: "", durationMinutes: 60 };
+function newRow(): RangeRow {
+  return { key: crypto.randomUUID(), from: "", to: "" };
 }
 
 /**
  * Admin-only formulier op `/beheer/agenda`: kiest een datum + één of meer
- * tijdstippen (met duur) en publiceert ze als vrije meetingmomenten via
- * `createSlots`.
+ * "van–tot"-tijdsblokken (GEEN duur — die kiest de sales-persoon zelf bij
+ * het boeken) en publiceert ze als beschikbaarheidsvensters via
+ * `createWindows`.
  */
-export function AddSlotsForm() {
+export function AddWindowsForm() {
   const idPrefix = useId();
   const [date, setDate] = useState(todayIso());
-  const [rows, setRows] = useState<TimeRow[]>([newRow()]);
+  const [rows, setRows] = useState<RangeRow[]>([newRow()]);
   const [isPending, startTransition] = useTransition();
 
-  function updateRow(key: string, patch: Partial<TimeRow>) {
+  function updateRow(key: string, patch: Partial<RangeRow>) {
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
 
@@ -59,20 +51,20 @@ export function AddSlotsForm() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const times = rows
-      .filter((row) => row.start.length > 0)
-      .map((row) => ({ start: row.start, durationMinutes: row.durationMinutes }));
+    const ranges = rows
+      .filter((row) => row.from.length > 0 && row.to.length > 0)
+      .map((row) => ({ from: row.from, to: row.to }));
 
-    if (times.length === 0) {
-      toast.error("Voeg minstens één tijdstip toe.");
+    if (ranges.length === 0) {
+      toast.error("Voeg minstens één tijdsblok toe.");
       return;
     }
 
     startTransition(async () => {
       try {
-        await createSlots({ date, times });
+        const result = await createWindows({ date, ranges });
         toast.success(
-          times.length === 1 ? "Moment toegevoegd" : `${times.length} momenten toegevoegd`,
+          result.count === 1 ? "Beschikbaarheidsblok toegevoegd" : `${result.count} blokken toegevoegd`,
         );
         setRows([newRow()]);
       } catch (error) {
@@ -84,7 +76,7 @@ export function AddSlotsForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Momenten toevoegen</CardTitle>
+        <CardTitle>Beschikbaarheid toevoegen</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -102,35 +94,26 @@ export function AddSlotsForm() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Tijdstippen</Label>
+            <Label>Tijdsblokken</Label>
             {rows.map((row) => (
               <div key={row.key} className="flex items-center gap-2">
                 <Input
                   type="time"
-                  aria-label="Tijdstip"
-                  value={row.start}
-                  onChange={(event) => updateRow(row.key, { start: event.target.value })}
+                  aria-label="Van"
+                  value={row.from}
+                  onChange={(event) => updateRow(row.key, { from: event.target.value })}
                   disabled={isPending}
                   className="w-32"
                 />
-                <Select
-                  value={String(row.durationMinutes)}
-                  onValueChange={(value) =>
-                    updateRow(row.key, { durationMinutes: Number(value) })
-                  }
+                <span className="text-sm text-muted-foreground">tot</span>
+                <Input
+                  type="time"
+                  aria-label="Tot"
+                  value={row.to}
+                  onChange={(event) => updateRow(row.key, { to: event.target.value })}
                   disabled={isPending}
-                >
-                  <SelectTrigger aria-label="Duur" className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATION_OPTIONS.map((minutes) => (
-                      <SelectItem key={minutes} value={String(minutes)}>
-                        {minutes} min
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-32"
+                />
                 <Button
                   type="button"
                   variant="ghost"

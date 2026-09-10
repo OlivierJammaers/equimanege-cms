@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
@@ -8,8 +8,8 @@ import {
   accounts,
   accountSnapshots,
   activities,
+  availabilityWindows,
   cmsUsers,
-  meetingSlots,
   meetings,
 } from "@/db/schema";
 import {
@@ -32,7 +32,7 @@ import { MeetingControls } from "@/components/accounts/meeting-controls";
 import { requireUser } from "@/lib/auth-guards";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
 import { daysAgoFromNow } from "@/lib/kpi-series";
-import { groupSlotsByDay } from "@/lib/meeting-utils";
+import { groupWindowsByDay } from "@/lib/meeting-utils";
 import {
   PRIORITY_LABELS,
   type CallStatus,
@@ -149,34 +149,43 @@ export default async function AccountDetailPage({
   const [upcomingMeetingRow] = await db
     .select({
       meetingId: meetings.id,
-      startsAt: meetingSlots.startsAt,
-      durationMinutes: meetingSlots.durationMinutes,
+      startsAt: meetings.startsAt,
+      endsAt: meetings.endsAt,
       bookedByName: cmsUsers.name,
     })
     .from(meetings)
-    .innerJoin(meetingSlots, eq(meetings.slotId, meetingSlots.id))
     .leftJoin(cmsUsers, eq(meetings.bookedBy, cmsUsers.id))
-    .where(and(eq(meetings.accountId, account.id), gte(meetingSlots.startsAt, now)))
-    .orderBy(asc(meetingSlots.startsAt))
+    .where(and(eq(meetings.accountId, account.id), gte(meetings.endsAt, now)))
+    .orderBy(asc(meetings.startsAt))
     .limit(1);
 
-  const freeSlotRows = upcomingMeetingRow
-    ? []
-    : await db
-        .select({
-          slotId: meetingSlots.id,
-          startsAt: meetingSlots.startsAt,
-          durationMinutes: meetingSlots.durationMinutes,
-        })
-        .from(meetingSlots)
-        .leftJoin(meetings, eq(meetings.slotId, meetingSlots.id))
-        .where(and(isNull(meetings.id), gte(meetingSlots.startsAt, now)))
-        .orderBy(asc(meetingSlots.startsAt));
+  // Beschikbaarheidsvensters + alle relevante meetings (om per venster de
+  // nog vrije tijd te kunnen berekenen in de boek-dialoog) — enkel nodig als
+  // dit account nog geen komende meeting heeft.
+  const [windowRows, upcomingMeetingRows] = upcomingMeetingRow
+    ? [[], []]
+    : await Promise.all([
+        db
+          .select({ id: availabilityWindows.id, startsAt: availabilityWindows.startsAt, endsAt: availabilityWindows.endsAt })
+          .from(availabilityWindows)
+          .where(gte(availabilityWindows.endsAt, now))
+          .orderBy(asc(availabilityWindows.startsAt)),
+        db
+          .select({ startsAt: meetings.startsAt, endsAt: meetings.endsAt })
+          .from(meetings)
+          .where(gte(meetings.endsAt, now)),
+      ]);
 
-  const freeSlotGroups = groupSlotsByDay(
-    freeSlotRows.map((row) => ({ ...row, booked: false })),
-    now,
-  );
+  const freeWindows = windowRows.map((window) => ({
+    windowId: window.id,
+    startsAt: window.startsAt,
+    endsAt: window.endsAt,
+    meetings: upcomingMeetingRows.filter(
+      (meeting) => meeting.startsAt < window.endsAt && meeting.endsAt > window.startsAt,
+    ),
+  }));
+
+  const freeWindowGroups = groupWindowsByDay(freeWindows, now);
 
   const editDefaultValues: AccountFormDefaultValues = {
     name: account.name,
@@ -429,12 +438,12 @@ export default async function AccountDetailPage({
                       ? {
                           meetingId: upcomingMeetingRow.meetingId,
                           startsAt: upcomingMeetingRow.startsAt,
-                          durationMinutes: upcomingMeetingRow.durationMinutes,
+                          endsAt: upcomingMeetingRow.endsAt,
                           bookedByName: upcomingMeetingRow.bookedByName,
                         }
                       : null
                   }
-                  freeSlotGroups={freeSlotGroups}
+                  freeWindowGroups={freeWindowGroups}
                 />
               </div>
               <div className="border-t pt-4">
