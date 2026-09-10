@@ -15,6 +15,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AccountFormDialog,
   type AccountFormDefaultValues,
 } from "@/components/accounts/account-form-dialog";
@@ -55,31 +60,40 @@ export function AccountDetailActions({
 
   return (
     <div className="flex items-center gap-2">
-      <AccountFormDialog
-        mode="edit"
-        accountId={accountId}
-        defaultValues={defaultValues}
-        trigger={
-          <Button type="button" variant="outline" size="sm">
-            <Pencil className="size-3.5" />
-            Bewerken
-          </Button>
-        }
-      />
+      <Tooltip>
+        <AccountFormDialog
+          mode="edit"
+          accountId={accountId}
+          defaultValues={defaultValues}
+          trigger={
+            <TooltipTrigger asChild>
+              <Button type="button" variant="outline" size="icon" aria-label="Bewerken">
+                <Pencil className="size-4" />
+              </Button>
+            </TooltipTrigger>
+          }
+        />
+        <TooltipContent>Bewerken</TooltipContent>
+      </Tooltip>
 
       {isAdmin ? (
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <DialogTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="size-3.5" />
-              Verwijderen
-            </Button>
-          </DialogTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Verwijderen"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Verwijderen</TooltipContent>
+          </Tooltip>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Account verwijderen?</DialogTitle>

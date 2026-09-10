@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deactivateUser, reactivateUser } from "@/server/actions/users";
 import { ResetPasswordDialog } from "@/components/admin/reset-password-dialog";
 
@@ -36,15 +42,21 @@ export function UserRowActions({
   return (
     <div className="flex items-center justify-end gap-2">
       <ResetPasswordDialog userId={userId} />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={handleToggle}
-        disabled={isPending}
-      >
-        {isPending ? "Bezig…" : active ? "Deactiveren" : "Heractiveren"}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={active ? "Deactiveren" : "Heractiveren"}
+            onClick={handleToggle}
+            disabled={isPending}
+          >
+            {active ? <UserX className="size-4" /> : <UserCheck className="size-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{active ? "Deactiveren" : "Heractiveren"}</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

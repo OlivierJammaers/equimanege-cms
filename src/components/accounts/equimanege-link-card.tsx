@@ -20,6 +20,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   listEquimanegeTenants,
   linkAccountToTenant,
   unlinkAccountFromTenant,
@@ -135,17 +140,16 @@ export function EquimanegeLinkCard({
               {linkedName ? ` — ${linkedName}` : ""}
             </p>
             <Dialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                >
-                  <Unlink className="size-3.5" />
-                  Ontkoppelen
-                </Button>
-              </DialogTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" size="icon" aria-label="Ontkoppelen">
+                      <Unlink className="size-4" />
+                    </Button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Ontkoppelen</TooltipContent>
+              </Tooltip>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Koppeling verwijderen?</DialogTitle>

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CalendarX2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatTimeRangeNl } from "@/lib/meeting-utils";
 import { cancelMeeting, deleteWindow } from "@/server/actions/meetings";
 
@@ -84,16 +90,22 @@ function MeetingRow({ meeting }: { meeting: AgendaMeetingRow }) {
       </div>
 
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            Annuleren
-          </Button>
-        </DialogTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Annuleren"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <CalendarX2 className="size-4" />
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Meeting annuleren</TooltipContent>
+        </Tooltip>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Meeting annuleren?</DialogTitle>
@@ -148,16 +160,22 @@ function WindowRow({ window }: { window: AgendaWindowRow }) {
           </Badge>
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground"
-          onClick={handleDelete}
-          disabled={isPending}
-        >
-          {isPending ? "Bezig…" : "Verwijderen"}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Verwijderen"
+              className="text-muted-foreground"
+              onClick={handleDelete}
+              disabled={isPending}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Verwijderen</TooltipContent>
+        </Tooltip>
       </div>
 
       {window.meetings.length > 0 ? (
