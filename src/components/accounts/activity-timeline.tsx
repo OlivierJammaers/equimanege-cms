@@ -18,6 +18,7 @@ const ACTIVITY_TYPE_LABELS: Record<Activity["type"], string> = {
   status_change: "Statuswijziging",
   email: "E-mail",
   system: "Systeem",
+  meeting: "Meeting",
 };
 
 const ACTIVITY_TYPE_BADGE_CLASSES: Record<Activity["type"], string> = {
@@ -30,6 +31,8 @@ const ACTIVITY_TYPE_BADGE_CLASSES: Record<Activity["type"], string> = {
     "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-400",
   system:
     "border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-500",
+  meeting:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400",
 };
 
 // Vaste tijdzone i.p.v. de serverlocale, zodat de opmaak deterministisch

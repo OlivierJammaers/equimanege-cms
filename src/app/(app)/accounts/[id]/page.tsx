@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
-import { accounts, accountSnapshots, activities, cmsUsers } from "@/db/schema";
+import {
+  accounts,
+  accountSnapshots,
+  activities,
+  cmsUsers,
+  meetingSlots,
+  meetings,
+} from "@/db/schema";
 import {
   Card,
   CardContent,
@@ -21,9 +28,11 @@ import { AddCommentForm } from "@/components/accounts/add-comment-form";
 import { ActivityTimeline } from "@/components/accounts/activity-timeline";
 import { EquimanegeLinkCard } from "@/components/accounts/equimanege-link-card";
 import { KpiDashboard } from "@/components/accounts/kpi-dashboard";
+import { MeetingControls } from "@/components/accounts/meeting-controls";
 import { requireUser } from "@/lib/auth-guards";
 import type { KpiTenantBlock } from "@/lib/kpi-schema";
 import { daysAgoFromNow } from "@/lib/kpi-series";
+import { groupSlotsByDay } from "@/lib/meeting-utils";
 import {
   PRIORITY_LABELS,
   type CallStatus,
@@ -134,6 +143,40 @@ export default async function AccountDetailPage({
     .leftJoin(cmsUsers, eq(activities.userId, cmsUsers.id))
     .where(eq(activities.accountId, account.id))
     .orderBy(desc(activities.createdAt));
+
+  const now = new Date();
+
+  const [upcomingMeetingRow] = await db
+    .select({
+      meetingId: meetings.id,
+      startsAt: meetingSlots.startsAt,
+      durationMinutes: meetingSlots.durationMinutes,
+      bookedByName: cmsUsers.name,
+    })
+    .from(meetings)
+    .innerJoin(meetingSlots, eq(meetings.slotId, meetingSlots.id))
+    .leftJoin(cmsUsers, eq(meetings.bookedBy, cmsUsers.id))
+    .where(and(eq(meetings.accountId, account.id), gte(meetingSlots.startsAt, now)))
+    .orderBy(asc(meetingSlots.startsAt))
+    .limit(1);
+
+  const freeSlotRows = upcomingMeetingRow
+    ? []
+    : await db
+        .select({
+          slotId: meetingSlots.id,
+          startsAt: meetingSlots.startsAt,
+          durationMinutes: meetingSlots.durationMinutes,
+        })
+        .from(meetingSlots)
+        .leftJoin(meetings, eq(meetings.slotId, meetingSlots.id))
+        .where(and(isNull(meetings.id), gte(meetingSlots.startsAt, now)))
+        .orderBy(asc(meetingSlots.startsAt));
+
+  const freeSlotGroups = groupSlotsByDay(
+    freeSlotRows.map((row) => ({ ...row, booked: false })),
+    now,
+  );
 
   const editDefaultValues: AccountFormDefaultValues = {
     name: account.name,
@@ -378,6 +421,22 @@ export default async function AccountDetailPage({
                 isDone={account.isDone}
                 type={account.type}
               />
+              <div className="border-t pt-4">
+                <MeetingControls
+                  accountId={account.id}
+                  upcomingMeeting={
+                    upcomingMeetingRow
+                      ? {
+                          meetingId: upcomingMeetingRow.meetingId,
+                          startsAt: upcomingMeetingRow.startsAt,
+                          durationMinutes: upcomingMeetingRow.durationMinutes,
+                          bookedByName: upcomingMeetingRow.bookedByName,
+                        }
+                      : null
+                  }
+                  freeSlotGroups={freeSlotGroups}
+                />
+              </div>
               <div className="border-t pt-4">
                 <AddCommentForm accountId={account.id} />
               </div>

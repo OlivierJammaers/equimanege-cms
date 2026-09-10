@@ -30,6 +30,11 @@ const LINKS = [
     title: "AI-onderzoek",
     description: "Een land + provincie laten onderzoeken op nieuwe prospecten.",
   },
+  {
+    href: "/beheer/agenda",
+    title: "Agenda",
+    description: "Beschikbare meetingmomenten beheren.",
+  },
 ];
 
 export default async function BeheerLandingPage() {
