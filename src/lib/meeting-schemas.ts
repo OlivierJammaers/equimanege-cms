@@ -9,33 +9,52 @@ import { z } from "zod";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-export const slotTimeSchema = z.object({
-  start: z.string().regex(timeRegex, "Ongeldig tijdstip (verwacht UU:MM)."),
-  durationMinutes: z
-    .number()
-    .int()
-    .min(15, "Duur moet minstens 15 minuten zijn.")
-    .max(240, "Duur mag hoogstens 240 minuten zijn."),
-});
+export const windowRangeSchema = z
+  .object({
+    from: z.string().regex(timeRegex, "Ongeldig tijdstip (verwacht UU:MM)."),
+    to: z.string().regex(timeRegex, "Ongeldig tijdstip (verwacht UU:MM)."),
+  })
+  .refine((range) => range.to > range.from, {
+    message: "Eindtijd moet na de starttijd liggen.",
+    path: ["to"],
+  });
 
-export const createSlotsSchema = z.object({
+export const createWindowsSchema = z.object({
   date: z.iso.date("Ongeldige datum."),
-  times: z.array(slotTimeSchema).min(1, "Voeg minstens één tijdstip toe."),
+  ranges: z.array(windowRangeSchema).min(1, "Voeg minstens één tijdsblok toe."),
 });
 
-export type CreateSlotsInput = z.infer<typeof createSlotsSchema>;
+export type CreateWindowsInput = z.infer<typeof createWindowsSchema>;
 
-export const slotIdSchema = z.object({
-  slotId: z.string().uuid(),
+export const windowIdSchema = z.object({
+  windowId: z.string().uuid(),
 });
 
 export const meetingIdSchema = z.object({
   meetingId: z.string().uuid(),
 });
 
+/**
+ * `start` is het volledige gekozen instant als ISO-8601-string (UTC), niet
+ * een Brussels wall-clock "UU:MM". De sales-dialoog berekent de mogelijke
+ * starttijden zelf als concrete `Date`-instanties (`startOptions` in
+ * meeting-utils.ts, binnen een venster) en geeft de gekozen optie hier
+ * rechtstreeks als instant door — dat sluit het cleanst aan en vermijdt een
+ * dubbele/foutgevoelige heen-en-terug-vertaling naar wall-clock-tijd (die bij
+ * een venster rond een DST-omschakeling of middernacht ambigu zou kunnen
+ * worden). `durationMinutes` kiest de sales-persoon zelf (15–240 min, zie
+ * `bookMeeting` in meetings.ts) — er is bewust geen vaste duur meer op een
+ * beschikbaarheidsvenster.
+ */
 export const bookMeetingSchema = z.object({
   accountId: z.string().uuid(),
-  slotId: z.string().uuid(),
+  windowId: z.string().uuid(),
+  start: z.iso.datetime({ message: "Ongeldig tijdstip." }),
+  durationMinutes: z
+    .number()
+    .int()
+    .min(15, "Duur moet minstens 15 minuten zijn.")
+    .max(240, "Duur mag hoogstens 240 minuten zijn."),
   note: z
     .string()
     .trim()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CalendarClock, CalendarPlus } from "lucide-react";
@@ -15,45 +15,89 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { formatDayLabelNl, formatSlotTimeNl } from "@/lib/meeting-utils";
+import { formatDayLabelNl, formatTimeRangeNl, freeGaps, startOptions } from "@/lib/meeting-utils";
 import { bookMeeting, cancelMeeting } from "@/server/actions/meetings";
 
-export type FreeSlotDayGroup = {
+const DURATION_OPTIONS = [30, 45, 60, 90, 120] as const;
+const DEFAULT_DURATION = 60;
+
+export type FreeWindow = {
+  windowId: string;
+  startsAt: Date;
+  endsAt: Date;
+  meetings: { startsAt: Date; endsAt: Date }[];
+};
+
+export type FreeWindowDayGroup = {
   dayKey: string;
   dayLabel: string;
-  slots: { slotId: string; startsAt: Date; durationMinutes: number }[];
+  slots: FreeWindow[];
 };
 
 export type UpcomingMeeting = {
   meetingId: string;
   startsAt: Date;
-  durationMinutes: number;
+  endsAt: Date;
   bookedByName: string | null;
 };
 
 /**
  * Sales-flow op het accountdetail (boven `AddCommentForm` in de
  * "Opvolging"-kaart): toont een al geboekte meeting met een
- * annuleer-knop, of een "Meeting inplannen"-knop die een dialoog opent met
- * de vrije momenten (server heeft ze al opgehaald, gegroepeerd per dag).
+ * annuleer-knop, of een "Meeting inplannen"-knop die een dialoog opent.
+ * Daarin kiest de sales-persoon eerst een beschikbaarheidsvenster, daarna
+ * zelf een duur en (binnen de nog vrije tijd van dat venster) een
+ * starttijd — er staat nergens een vaste duur op het venster zelf.
  */
 export function MeetingControls({
   accountId,
   upcomingMeeting,
-  freeSlotGroups,
+  freeWindowGroups,
 }: {
   accountId: string;
   upcomingMeeting: UpcomingMeeting | null;
-  freeSlotGroups: FreeSlotDayGroup[];
+  freeWindowGroups: FreeWindowDayGroup[];
 }) {
   const router = useRouter();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [selectedWindow, setSelectedWindow] = useState<FreeWindow | null>(null);
+  const [durationMinutes, setDurationMinutes] = useState<number>(DEFAULT_DURATION);
+  const [selectedStart, setSelectedStart] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [isCancelPending, startCancelTransition] = useTransition();
   const [isBookPending, startBookTransition] = useTransition();
+
+  const startChoices = useMemo(() => {
+    if (!selectedWindow) return [];
+    const gaps = freeGaps(selectedWindow, selectedWindow.meetings);
+    return startOptions(gaps, durationMinutes);
+  }, [selectedWindow, durationMinutes]);
+
+  function resetBookState() {
+    setSelectedWindow(null);
+    setDurationMinutes(DEFAULT_DURATION);
+    setSelectedStart(null);
+    setNote("");
+  }
+
+  function handleSelectWindow(window: FreeWindow) {
+    setSelectedWindow(window);
+    setSelectedStart(null);
+  }
+
+  function handleDurationChange(value: string) {
+    setDurationMinutes(Number(value));
+    setSelectedStart(null);
+  }
 
   function handleCancel() {
     if (!upcomingMeeting) return;
@@ -70,14 +114,19 @@ export function MeetingControls({
   }
 
   function handleBook() {
-    if (!selectedSlotId) return;
+    if (!selectedWindow || !selectedStart) return;
     startBookTransition(async () => {
       try {
-        await bookMeeting({ accountId, slotId: selectedSlotId, note });
+        await bookMeeting({
+          accountId,
+          windowId: selectedWindow.windowId,
+          start: selectedStart,
+          durationMinutes,
+          note,
+        });
         toast.success("Meeting ingepland");
         setBookOpen(false);
-        setSelectedSlotId(null);
-        setNote("");
+        resetBookState();
         router.refresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Inplannen mislukt.");
@@ -93,12 +142,10 @@ export function MeetingControls({
           <div className="flex flex-col gap-0.5">
             <p className="text-sm text-foreground">
               Meeting: {formatDayLabelNl(upcomingMeeting.startsAt)},{" "}
-              {formatSlotTimeNl(upcomingMeeting.startsAt, upcomingMeeting.durationMinutes)}
+              {formatTimeRangeNl(upcomingMeeting.startsAt, upcomingMeeting.endsAt)}
             </p>
             {upcomingMeeting.bookedByName ? (
-              <p className="text-xs text-muted-foreground">
-                door {upcomingMeeting.bookedByName}
-              </p>
+              <p className="text-xs text-muted-foreground">door {upcomingMeeting.bookedByName}</p>
             ) : null}
           </div>
         </div>
@@ -117,25 +164,13 @@ export function MeetingControls({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Meeting annuleren?</DialogTitle>
-              <DialogDescription>
-                Het slot komt weer vrij voor een nieuwe boeking.
-              </DialogDescription>
+              <DialogDescription>Dit tijdstip komt weer vrij voor een nieuwe boeking.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCancelOpen(false)}
-                disabled={isCancelPending}
-              >
+              <Button type="button" variant="outline" onClick={() => setCancelOpen(false)} disabled={isCancelPending}>
                 Terug
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleCancel}
-                disabled={isCancelPending}
-              >
+              <Button type="button" variant="destructive" onClick={handleCancel} disabled={isCancelPending}>
                 {isCancelPending ? "Bezig…" : "Annuleren"}
               </Button>
             </DialogFooter>
@@ -150,10 +185,7 @@ export function MeetingControls({
       open={bookOpen}
       onOpenChange={(open) => {
         setBookOpen(open);
-        if (!open) {
-          setSelectedSlotId(null);
-          setNote("");
-        }
+        if (!open) resetBookState();
       }}
     >
       <DialogTrigger asChild>
@@ -165,32 +197,31 @@ export function MeetingControls({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Meeting inplannen</DialogTitle>
-          <DialogDescription>Kies een vrij moment uit de agenda.</DialogDescription>
+          <DialogDescription>Kies een beschikbaarheidsvenster, dan een duur en starttijd.</DialogDescription>
         </DialogHeader>
 
-        {freeSlotGroups.length === 0 ? (
+        {freeWindowGroups.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Er zijn momenteel geen vrije momenten — vraag de admin om beschikbaarheid toe te
-            voegen.
+            Er is momenteel geen beschikbaarheid — vraag de admin om een venster toe te voegen.
           </p>
         ) : (
-          <div className="flex max-h-72 flex-col gap-4 overflow-y-auto">
-            {freeSlotGroups.map((group) => (
+          <div className="flex max-h-48 flex-col gap-4 overflow-y-auto">
+            {freeWindowGroups.map((group) => (
               <div key={group.dayKey}>
                 <h4 className="mb-1.5 text-xs font-medium text-muted-foreground capitalize">
                   {group.dayLabel}
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {group.slots.map((slot) => (
+                  {group.slots.map((window) => (
                     <Button
-                      key={slot.slotId}
+                      key={window.windowId}
                       type="button"
                       size="sm"
-                      variant={selectedSlotId === slot.slotId ? "default" : "outline"}
-                      onClick={() => setSelectedSlotId(slot.slotId)}
+                      variant={selectedWindow?.windowId === window.windowId ? "default" : "outline"}
+                      onClick={() => handleSelectWindow(window)}
                       className={cn("font-mono", "tabular-nums")}
                     >
-                      {formatSlotTimeNl(slot.startsAt, slot.durationMinutes)}
+                      {formatTimeRangeNl(window.startsAt, window.endsAt)}
                     </Button>
                   ))}
                 </div>
@@ -198,6 +229,57 @@ export function MeetingControls({
             ))}
           </div>
         )}
+
+        {selectedWindow ? (
+          <div className="flex flex-col gap-3 border-t pt-3">
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Duur</span>
+                <Select value={String(durationMinutes)} onValueChange={handleDurationChange}>
+                  <SelectTrigger aria-label="Duur" className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DURATION_OPTIONS.map((minutes) => (
+                      <SelectItem key={minutes} value={String(minutes)}>
+                        {minutes} min
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Starttijd</span>
+                <Select
+                  value={selectedStart ?? undefined}
+                  onValueChange={(value) => setSelectedStart(value)}
+                  disabled={startChoices.length === 0}
+                >
+                  <SelectTrigger aria-label="Starttijd" className="w-28">
+                    <SelectValue placeholder="Kies…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {startChoices.map((start) => (
+                      <SelectItem key={start.toISOString()} value={start.toISOString()}>
+                        {formatTimeRangeNl(start, new Date(start.getTime() + durationMinutes * 60_000)).split(
+                          " – ",
+                        )[0]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {startChoices.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Geen starttijd van {durationMinutes} min past nog in dit venster — kies een kortere duur of
+                een ander venster.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-1.5">
           <Textarea
@@ -210,11 +292,7 @@ export function MeetingControls({
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            onClick={handleBook}
-            disabled={isBookPending || !selectedSlotId}
-          >
+          <Button type="button" onClick={handleBook} disabled={isBookPending || !selectedStart}>
             {isBookPending ? "Bezig…" : "Inplannen"}
           </Button>
         </DialogFooter>

@@ -146,48 +146,52 @@ export const activities = pgTable(
 );
 
 /**
- * Beschikbare meetingmomenten die de admin publiceert. `bookMeeting`
- * (src/server/actions/meetings.ts) boekt er één door in `meetings` te
- * inserten; de unique index daar op `slotId` is de race-proof
- * dubbelboekingsgrendel (niet dit `booked`-veld — dat bestaat hier niet
- * expres, het slot-is-vrij-of-niet volgt uit de aan-/afwezigheid van een
- * `meetings`-rij).
+ * Beschikbaarheidsvensters die de admin publiceert: enkel "van–tot" per dag,
+ * GEEN meetingduur — die kiest de sales-persoon zelf bij het boeken, binnen
+ * het venster (zie `meetings` hieronder en `bookMeeting` in
+ * src/server/actions/meetings.ts). Geen FK vanuit `meetings`: een venster is
+ * puur een beschikbaarheidssignaal, de geboekte meeting leeft met haar eigen
+ * start/eind verder (zo blijft een venster vrij verwijderbaar/aanpasbaar
+ * zonder de al geboekte meetings te raken).
  */
-export const meetingSlots = pgTable(
-  "meeting_slots",
+export const availabilityWindows = pgTable(
+  "availability_windows",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-    durationMinutes: integer("duration_minutes").notNull().default(60),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     createdBy: uuid("created_by").references(() => cmsUsers.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ startsAtIdx: index("meeting_slots_starts_at_idx").on(t.startsAt) }),
+  (t) => ({ startsAtIdx: index("availability_windows_starts_at_idx").on(t.startsAt) }),
 );
 
 /**
- * Een geboekte meeting op een slot, voor een account. De unieke index op
- * `slotId` is de race-proof dubbelboekingsgrendel: twee gelijktijdige
- * `bookMeeting`-calls op hetzelfde slot geven een unique-constraint-fout
- * i.p.v. twee meetings op één slot.
+ * Een geboekte meeting voor een account, met haar eigen start/eind-instant
+ * (door de sales-persoon gekozen binnen een beschikbaarheidsvenster bij het
+ * boeken — zie `bookMeeting`). De race-proof dubbelboekingsgrendel is de
+ * `meetings_no_overlap`-exclusion-constraint die de migratie er als raw SQL
+ * aan toevoegt (`EXCLUDE USING gist (tstzrange(starts_at, ends_at) WITH
+ * &&)`) — Drizzle kent geen exclusion-constraints, dus die staat niet hier
+ * maar wel in de gegenereerde migratie-SQL. Twee overlappende inserts geven
+ * een PG-fout met SQLSTATE 23P01, opgevangen in `bookMeeting`.
  */
 export const meetings = pgTable(
   "meetings",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    slotId: uuid("slot_id")
-      .notNull()
-      .references(() => meetingSlots.id, { onDelete: "cascade" }),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     bookedBy: uuid("booked_by").references(() => cmsUsers.id),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    slotIdUq: uniqueIndex("meetings_slot_id_uq").on(t.slotId),
     accountIdx: index("meetings_account_idx").on(t.accountId),
+    startsAtIdx: index("meetings_starts_at_idx").on(t.startsAt),
   }),
 );
 
@@ -292,8 +296,8 @@ export type NewAccount = typeof accounts.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type CmsUser = typeof cmsUsers.$inferSelect;
-export type MeetingSlot = typeof meetingSlots.$inferSelect;
-export type NewMeetingSlot = typeof meetingSlots.$inferInsert;
+export type AvailabilityWindow = typeof availabilityWindows.$inferSelect;
+export type NewAvailabilityWindow = typeof availabilityWindows.$inferInsert;
 export type Meeting = typeof meetings.$inferSelect;
 export type NewMeeting = typeof meetings.$inferInsert;
 export type CrawlRun = typeof crawlRuns.$inferSelect;

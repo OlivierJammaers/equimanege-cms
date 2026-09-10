@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { accounts, cmsUsers, meetingSlots, meetings } from "@/db/schema";
+import { accounts, cmsUsers, meetings } from "@/db/schema";
 import { requireUser } from "@/lib/auth-guards";
 import { formatDayLabelNl, isMeetingUpcoming } from "@/lib/meeting-utils";
 import { MeetingsView, type MeetingDayGroup, type MeetingRow } from "@/components/meetings/meetings-view";
@@ -13,10 +13,10 @@ export const metadata: Metadata = {
   title: "Meetings — EquiManage CRM",
 };
 
-// Ruim boven de max. slotduur (240 min, zie meeting-schemas.ts) zodat een nog
-// lopende meeting (gestart maar niet geëindigd) altijd meegenomen wordt —
-// het definitieve Komend/Afgelopen-onderscheid gebeurt daarna in JS via
-// `isMeetingUpcoming` (op het slot-einde, niet het begin).
+// Ruim boven de max. meetingduur (240 min, zie meeting-schemas.ts) zodat een
+// nog lopende meeting (gestart maar niet geëindigd) altijd meegenomen wordt
+// — het definitieve Komend/Afgelopen-onderscheid gebeurt daarna in JS via
+// `isMeetingUpcoming` (op het einde, niet het begin).
 const UPCOMING_LOOKBACK_MS = 4 * 60 * 60 * 1000;
 const PAST_CAP = 100;
 // Buffer boven de cap: sommige van de meest recente "voorbije" rijen kunnen
@@ -26,8 +26,8 @@ const PAST_FETCH_LIMIT = PAST_CAP + 20;
 
 const meetingSelection = {
   meetingId: meetings.id,
-  startsAt: meetingSlots.startsAt,
-  durationMinutes: meetingSlots.durationMinutes,
+  startsAt: meetings.startsAt,
+  endsAt: meetings.endsAt,
   accountId: accounts.id,
   accountName: accounts.name,
   accountGemeente: accounts.gemeente,
@@ -66,29 +66,23 @@ export default async function MeetingsPage() {
   const upcomingRowsRaw = await db
     .select(meetingSelection)
     .from(meetings)
-    .innerJoin(meetingSlots, eq(meetings.slotId, meetingSlots.id))
     .innerJoin(accounts, eq(meetings.accountId, accounts.id))
     .leftJoin(cmsUsers, eq(meetings.bookedBy, cmsUsers.id))
-    .where(gte(meetingSlots.startsAt, new Date(now.getTime() - UPCOMING_LOOKBACK_MS)))
-    .orderBy(asc(meetingSlots.startsAt));
+    .where(gte(meetings.endsAt, new Date(now.getTime() - UPCOMING_LOOKBACK_MS)))
+    .orderBy(asc(meetings.startsAt));
 
-  const upcomingRows = upcomingRowsRaw.filter((row) =>
-    isMeetingUpcoming(row.startsAt, row.durationMinutes, now),
-  );
+  const upcomingRows = upcomingRowsRaw.filter((row) => isMeetingUpcoming(row.endsAt, now));
 
   const pastRowsRaw = await db
     .select(meetingSelection)
     .from(meetings)
-    .innerJoin(meetingSlots, eq(meetings.slotId, meetingSlots.id))
     .innerJoin(accounts, eq(meetings.accountId, accounts.id))
     .leftJoin(cmsUsers, eq(meetings.bookedBy, cmsUsers.id))
-    .where(lt(meetingSlots.startsAt, now))
-    .orderBy(desc(meetingSlots.startsAt))
+    .where(lt(meetings.startsAt, now))
+    .orderBy(desc(meetings.startsAt))
     .limit(PAST_FETCH_LIMIT);
 
-  const pastRows = pastRowsRaw
-    .filter((row) => !isMeetingUpcoming(row.startsAt, row.durationMinutes, now))
-    .slice(0, PAST_CAP);
+  const pastRows = pastRowsRaw.filter((row) => !isMeetingUpcoming(row.endsAt, now)).slice(0, PAST_CAP);
 
   const upcomingGroups = groupMeetingsByDay(upcomingRows);
   const pastGroups = groupMeetingsByDay(pastRows);
@@ -97,9 +91,7 @@ export default async function MeetingsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Meetings</h1>
-        <p className="text-sm text-muted-foreground">
-          Alle ingeplande meetings, per dag gegroepeerd.
-        </p>
+        <p className="text-sm text-muted-foreground">Alle ingeplande meetings, per dag gegroepeerd.</p>
       </div>
 
       <MeetingsView upcomingGroups={upcomingGroups} pastGroups={pastGroups} />

@@ -2,10 +2,12 @@ import { describe, expect, test } from "vitest";
 import {
   brusselsWallTimeToUtc,
   formatDayLabelNl,
-  formatSlotTimeNl,
-  groupSlotsByDay,
+  formatTimeRangeNl,
+  freeGaps,
+  groupWindowsByDay,
   isMeetingUpcoming,
-  slotTimesFromInput,
+  startOptions,
+  windowRangesFromInput,
 } from "@/lib/meeting-utils";
 
 describe("brusselsWallTimeToUtc", () => {
@@ -25,28 +27,36 @@ describe("brusselsWallTimeToUtc", () => {
   });
 });
 
-describe("slotTimesFromInput", () => {
-  test("zet datum + tijden om naar Date-instanties (Brussels wall-clock)", () => {
-    const result = slotTimesFromInput("2026-09-17", [
-      { start: "09:00", durationMinutes: 60 },
-      { start: "14:30", durationMinutes: 45 },
+describe("windowRangesFromInput", () => {
+  test("zet datum + van/tot-reeksen om naar UTC start/eind-instanties", () => {
+    const result = windowRangesFromInput("2026-09-17", [
+      { from: "09:00", to: "12:00" },
+      { from: "13:00", to: "17:00" },
     ]);
     expect(result).toEqual([
-      { startsAt: new Date("2026-09-17T07:00:00.000Z"), durationMinutes: 60 },
-      { startsAt: new Date("2026-09-17T12:30:00.000Z"), durationMinutes: 45 },
+      {
+        startsAt: new Date("2026-09-17T07:00:00.000Z"),
+        endsAt: new Date("2026-09-17T10:00:00.000Z"),
+      },
+      {
+        startsAt: new Date("2026-09-17T11:00:00.000Z"),
+        endsAt: new Date("2026-09-17T15:00:00.000Z"),
+      },
     ]);
   });
 });
 
-describe("formatSlotTimeNl", () => {
+describe("formatTimeRangeNl", () => {
   test("formatteert een tijdsbereik in Brussels tijdzone", () => {
-    const startsAt = new Date("2026-09-17T12:00:00.000Z"); // 14:00 lokaal (zomer)
-    expect(formatSlotTimeNl(startsAt, 60)).toBe("14:00 – 15:00");
+    const startsAt = new Date("2026-09-17T11:00:00.000Z"); // 13:00 lokaal (zomer)
+    const endsAt = new Date("2026-09-17T15:00:00.000Z"); // 17:00 lokaal
+    expect(formatTimeRangeNl(startsAt, endsAt)).toBe("13:00 – 17:00");
   });
 
-  test("werkt ook over het uur heen", () => {
+  test("werkt ook in de winter", () => {
     const startsAt = new Date("2026-01-17T13:45:00.000Z"); // 14:45 lokaal (winter)
-    expect(formatSlotTimeNl(startsAt, 30)).toBe("14:45 – 15:15");
+    const endsAt = new Date("2026-01-17T14:15:00.000Z"); // 15:15 lokaal
+    expect(formatTimeRangeNl(startsAt, endsAt)).toBe("14:45 – 15:15");
   });
 });
 
@@ -57,93 +67,214 @@ describe("formatDayLabelNl", () => {
   });
 
   test("blijft correct rond middernacht UTC (tijdzoneverschil)", () => {
-    // 23:30 UTC op 30 sep = 01:30 lokaal op 1 okt (zomer, +2)
     const date = new Date("2026-09-30T23:30:00.000Z");
     expect(formatDayLabelNl(date)).toBe("donderdag 1 oktober");
-  });
-});
-
-describe("groupSlotsByDay", () => {
-  const now = new Date("2026-09-17T10:00:00.000Z");
-
-  test("sluit voorbije slots uit", () => {
-    const slots = [
-      { id: "past", startsAt: new Date("2026-09-17T08:00:00.000Z"), booked: false },
-      { id: "future", startsAt: new Date("2026-09-17T12:00:00.000Z"), booked: false },
-    ];
-    const groups = groupSlotsByDay(slots, now);
-    const ids = groups.flatMap((g) => g.slots.map((s) => s.id));
-    expect(ids).toEqual(["future"]);
-  });
-
-  test("sluit geboekte slots uit", () => {
-    const slots = [
-      { id: "booked", startsAt: new Date("2026-09-17T12:00:00.000Z"), booked: true },
-      { id: "free", startsAt: new Date("2026-09-17T13:00:00.000Z"), booked: false },
-    ];
-    const groups = groupSlotsByDay(slots, now);
-    const ids = groups.flatMap((g) => g.slots.map((s) => s.id));
-    expect(ids).toEqual(["free"]);
-  });
-
-  test("groepeert per dag (Brussels tijdzone) en sorteert oplopend", () => {
-    const slots = [
-      { id: "day2-late", startsAt: new Date("2026-09-18T14:00:00.000Z"), booked: false },
-      { id: "day1-late", startsAt: new Date("2026-09-17T16:00:00.000Z"), booked: false },
-      { id: "day1-early", startsAt: new Date("2026-09-17T12:00:00.000Z"), booked: false },
-    ];
-    const groups = groupSlotsByDay(slots, now);
-    expect(groups).toHaveLength(2);
-    expect(groups[0].dayKey).toBe("2026-09-17");
-    expect(groups[0].dayLabel).toBe("donderdag 17 september");
-    expect(groups[0].slots.map((s) => s.id)).toEqual(["day1-early", "day1-late"]);
-    expect(groups[1].dayKey).toBe("2026-09-18");
-    expect(groups[1].slots.map((s) => s.id)).toEqual(["day2-late"]);
-  });
-
-  test("lege input geeft lege lijst", () => {
-    expect(groupSlotsByDay([], now)).toEqual([]);
-  });
-
-  test("includeBooked: true houdt geboekte slots erbij (voor de admin-agenda)", () => {
-    const slots = [
-      { id: "booked", startsAt: new Date("2026-09-17T12:00:00.000Z"), booked: true },
-      { id: "free", startsAt: new Date("2026-09-17T13:00:00.000Z"), booked: false },
-    ];
-    const groups = groupSlotsByDay(slots, now, { includeBooked: true });
-    const ids = groups.flatMap((g) => g.slots.map((s) => s.id));
-    expect(ids).toEqual(["booked", "free"]);
   });
 });
 
 describe("isMeetingUpcoming", () => {
   const now = new Date("2026-09-17T10:00:00.000Z");
 
-  test("een nog te starten meeting is Komend", () => {
-    const startsAt = new Date("2026-09-17T12:00:00.000Z");
-    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+  test("een meeting die nog niet geëindigd is, is Komend", () => {
+    expect(isMeetingUpcoming(new Date("2026-09-17T10:45:00.000Z"), now)).toBe(true);
   });
 
   test("een reeds afgelopen meeting is niet Komend", () => {
-    const startsAt = new Date("2026-09-17T08:00:00.000Z");
-    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(false);
-  });
-
-  test("in uitvoering (gestart, nog niet geëindigd) telt nog als Komend", () => {
-    // Gestart om 09:45, duurt 60 min (eindigt 10:45) — nu is 10:00.
-    const startsAt = new Date("2026-09-17T09:45:00.000Z");
-    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+    expect(isMeetingUpcoming(new Date("2026-09-17T09:00:00.000Z"), now)).toBe(false);
   });
 
   test("exact op het eindmoment is nog Komend (inclusief)", () => {
-    // Gestart om 09:00, duurt 60 min → eindigt exact op `now` (10:00).
-    const startsAt = new Date("2026-09-17T09:00:00.000Z");
-    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+    expect(isMeetingUpcoming(new Date("2026-09-17T10:00:00.000Z"), now)).toBe(true);
+  });
+});
+
+describe("groupWindowsByDay", () => {
+  const now = new Date("2026-09-17T10:00:00.000Z");
+
+  test("sluit voorbije vensters uit (op eindtijd)", () => {
+    const windows = [
+      {
+        id: "past",
+        startsAt: new Date("2026-09-17T06:00:00.000Z"),
+        endsAt: new Date("2026-09-17T08:00:00.000Z"),
+      },
+      {
+        id: "future",
+        startsAt: new Date("2026-09-17T12:00:00.000Z"),
+        endsAt: new Date("2026-09-17T14:00:00.000Z"),
+      },
+    ];
+    const groups = groupWindowsByDay(windows, now);
+    expect(groups.flatMap((g) => g.slots.map((s) => s.id))).toEqual(["future"]);
   });
 
-  test("net na het eindmoment is niet meer Komend", () => {
-    // Gestart om 08:59, duurt 60 min → eindigt 09:59, net vóór `now` (10:00).
-    const startsAt = new Date("2026-09-17T08:59:00.000Z");
-    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(false);
+  test("een nog lopend venster (gestart maar niet geëindigd) blijft erbij", () => {
+    const windows = [
+      {
+        id: "ongoing",
+        startsAt: new Date("2026-09-17T09:00:00.000Z"),
+        endsAt: new Date("2026-09-17T11:00:00.000Z"),
+      },
+    ];
+    const groups = groupWindowsByDay(windows, now);
+    expect(groups.flatMap((g) => g.slots.map((s) => s.id))).toEqual(["ongoing"]);
+  });
+
+  test("groepeert per dag (Brussels tijdzone) en sorteert oplopend", () => {
+    const windows = [
+      {
+        id: "day2",
+        startsAt: new Date("2026-09-18T14:00:00.000Z"),
+        endsAt: new Date("2026-09-18T16:00:00.000Z"),
+      },
+      {
+        id: "day1-late",
+        startsAt: new Date("2026-09-17T16:00:00.000Z"),
+        endsAt: new Date("2026-09-17T18:00:00.000Z"),
+      },
+      {
+        id: "day1-early",
+        startsAt: new Date("2026-09-17T12:00:00.000Z"),
+        endsAt: new Date("2026-09-17T14:00:00.000Z"),
+      },
+    ];
+    const groups = groupWindowsByDay(windows, now);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].dayKey).toBe("2026-09-17");
+    expect(groups[0].dayLabel).toBe("donderdag 17 september");
+    expect(groups[0].slots.map((s) => s.id)).toEqual(["day1-early", "day1-late"]);
+    expect(groups[1].dayKey).toBe("2026-09-18");
+    expect(groups[1].slots.map((s) => s.id)).toEqual(["day2"]);
+  });
+
+  test("lege input geeft lege lijst", () => {
+    expect(groupWindowsByDay([], now)).toEqual([]);
+  });
+});
+
+describe("freeGaps", () => {
+  const window = {
+    startsAt: new Date("2026-09-17T13:00:00.000Z"),
+    endsAt: new Date("2026-09-17T17:00:00.000Z"),
+  };
+
+  test("geen meetings -> het hele venster is vrij", () => {
+    expect(freeGaps(window, [])).toEqual([
+      { startsAt: window.startsAt, endsAt: window.endsAt },
+    ]);
+  });
+
+  test("een meeting in het midden splitst het venster in twee gaten", () => {
+    const meeting = {
+      startsAt: new Date("2026-09-17T14:00:00.000Z"),
+      endsAt: new Date("2026-09-17T15:00:00.000Z"),
+    };
+    expect(freeGaps(window, [meeting])).toEqual([
+      { startsAt: window.startsAt, endsAt: meeting.startsAt },
+      { startsAt: meeting.endsAt, endsAt: window.endsAt },
+    ]);
+  });
+
+  test("aaneensluitende meetings laten geen gat tussen zich", () => {
+    const first = {
+      startsAt: new Date("2026-09-17T13:00:00.000Z"),
+      endsAt: new Date("2026-09-17T14:00:00.000Z"),
+    };
+    const second = {
+      startsAt: new Date("2026-09-17T14:00:00.000Z"),
+      endsAt: new Date("2026-09-17T15:00:00.000Z"),
+    };
+    expect(freeGaps(window, [first, second])).toEqual([
+      { startsAt: second.endsAt, endsAt: window.endsAt },
+    ]);
+  });
+
+  test("een meeting die het hele venster dekt geeft geen gaten", () => {
+    const meeting = { startsAt: window.startsAt, endsAt: window.endsAt };
+    expect(freeGaps(window, [meeting])).toEqual([]);
+  });
+
+  test("meetings buiten volgorde worden toch correct verwerkt", () => {
+    const late = {
+      startsAt: new Date("2026-09-17T16:00:00.000Z"),
+      endsAt: new Date("2026-09-17T16:30:00.000Z"),
+    };
+    const early = {
+      startsAt: new Date("2026-09-17T13:30:00.000Z"),
+      endsAt: new Date("2026-09-17T14:00:00.000Z"),
+    };
+    expect(freeGaps(window, [late, early])).toEqual([
+      { startsAt: window.startsAt, endsAt: early.startsAt },
+      { startsAt: early.endsAt, endsAt: late.startsAt },
+      { startsAt: late.endsAt, endsAt: window.endsAt },
+    ]);
+  });
+});
+
+describe("startOptions", () => {
+  test("volledig gat: startopties op het 30-min-raster, uitgelijnd op het gat-begin", () => {
+    const gap = {
+      startsAt: new Date("2026-09-17T13:00:00.000Z"),
+      endsAt: new Date("2026-09-17T14:00:00.000Z"),
+    };
+    const result = startOptions([gap], 30);
+    expect(result).toEqual([
+      new Date("2026-09-17T13:00:00.000Z"),
+      new Date("2026-09-17T13:30:00.000Z"),
+    ]);
+  });
+
+  test("duur groter dan elk gat geeft geen opties", () => {
+    const gap = {
+      startsAt: new Date("2026-09-17T13:00:00.000Z"),
+      endsAt: new Date("2026-09-17T13:45:00.000Z"),
+    };
+    expect(startOptions([gap], 60)).toEqual([]);
+  });
+
+  test("laatste optie in een gat is precies waar duur nog past", () => {
+    const gap = {
+      startsAt: new Date("2026-09-17T13:00:00.000Z"),
+      endsAt: new Date("2026-09-17T14:10:00.000Z"),
+    };
+    // 60 min duur: 13:00 (eindigt 14:00, past), 13:30 (eindigt 14:30, past niet)
+    expect(startOptions([gap], 60)).toEqual([new Date("2026-09-17T13:00:00.000Z")]);
+  });
+
+  test("meerdere gaten worden na elkaar geraster", () => {
+    const gaps = [
+      {
+        startsAt: new Date("2026-09-17T09:15:00.000Z"),
+        endsAt: new Date("2026-09-17T10:15:00.000Z"),
+      },
+      {
+        startsAt: new Date("2026-09-17T13:00:00.000Z"),
+        endsAt: new Date("2026-09-17T14:00:00.000Z"),
+      },
+    ];
+    // eerste gat begint niet op een "rond" uur -> raster start op 09:15 zelf
+    const result = startOptions(gaps, 30);
+    expect(result).toEqual([
+      new Date("2026-09-17T09:15:00.000Z"),
+      new Date("2026-09-17T09:45:00.000Z"),
+      new Date("2026-09-17T13:00:00.000Z"),
+      new Date("2026-09-17T13:30:00.000Z"),
+    ]);
+  });
+
+  test("aangepaste stepMinutes", () => {
+    const gap = {
+      startsAt: new Date("2026-09-17T13:00:00.000Z"),
+      endsAt: new Date("2026-09-17T13:45:00.000Z"),
+    };
+    expect(startOptions([gap], 15, 15)).toEqual([
+      new Date("2026-09-17T13:00:00.000Z"),
+      new Date("2026-09-17T13:15:00.000Z"),
+      new Date("2026-09-17T13:30:00.000Z"),
+    ]);
+  });
+
+  test("lege gatenlijst geeft geen opties", () => {
+    expect(startOptions([], 30)).toEqual([]);
   });
 });
