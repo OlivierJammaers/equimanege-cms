@@ -16,9 +16,11 @@ import {
 } from "@/lib/meeting-schemas";
 
 const AGENDA_PATH = "/beheer/agenda";
+const MEETINGS_OVERVIEW_PATH = "/meetings";
 
 function revalidateMeetingPaths(accountId?: string) {
   revalidatePath(AGENDA_PATH);
+  revalidatePath(MEETINGS_OVERVIEW_PATH);
   if (accountId) revalidatePath("/accounts/" + accountId);
 }
 

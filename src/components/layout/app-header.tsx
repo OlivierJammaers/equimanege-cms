@@ -43,6 +43,12 @@ export function AppHeader({
             Klanten
           </Link>
           <Link
+            href="/meetings"
+            className="text-foreground/80 transition-colors hover:text-foreground"
+          >
+            Meetings
+          </Link>
+          <Link
             href="/review"
             className="flex items-center gap-1.5 text-foreground/80 transition-colors hover:text-foreground"
           >

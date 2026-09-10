@@ -90,6 +90,22 @@ export function formatSlotTimeNl(startsAt: Date, durationMinutes: number): strin
   return `${timeFormatter.format(startsAt)} – ${timeFormatter.format(endsAt)}`;
 }
 
+/**
+ * Is een meeting "Komend" (nog niet afgelopen) op het gegeven moment? Bepaald
+ * door het einde van het slot (`startsAt + durationMinutes`), niet het
+ * begin — een meeting die al gestart is maar nog niet geëindigd (in
+ * uitvoering) telt dus nog als Komend. Gebruikt door de meetings-overzicht
+ * (`/meetings`) om Komend/Afgelopen te splitsen.
+ */
+export function isMeetingUpcoming(
+  startsAt: Date,
+  durationMinutes: number,
+  now: Date,
+): boolean {
+  const endsAt = startsAt.getTime() + durationMinutes * 60_000;
+  return endsAt >= now.getTime();
+}
+
 /** Formatteert een NL-daglabel in Brussels tijdzone, bv. "woensdag 17 september". */
 export function formatDayLabelNl(date: Date): string {
   return dayLabelFormatter.format(date);

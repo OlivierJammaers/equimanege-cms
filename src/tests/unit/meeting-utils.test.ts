@@ -4,6 +4,7 @@ import {
   formatDayLabelNl,
   formatSlotTimeNl,
   groupSlotsByDay,
+  isMeetingUpcoming,
   slotTimesFromInput,
 } from "@/lib/meeting-utils";
 
@@ -112,5 +113,37 @@ describe("groupSlotsByDay", () => {
     const groups = groupSlotsByDay(slots, now, { includeBooked: true });
     const ids = groups.flatMap((g) => g.slots.map((s) => s.id));
     expect(ids).toEqual(["booked", "free"]);
+  });
+});
+
+describe("isMeetingUpcoming", () => {
+  const now = new Date("2026-09-17T10:00:00.000Z");
+
+  test("een nog te starten meeting is Komend", () => {
+    const startsAt = new Date("2026-09-17T12:00:00.000Z");
+    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+  });
+
+  test("een reeds afgelopen meeting is niet Komend", () => {
+    const startsAt = new Date("2026-09-17T08:00:00.000Z");
+    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(false);
+  });
+
+  test("in uitvoering (gestart, nog niet geëindigd) telt nog als Komend", () => {
+    // Gestart om 09:45, duurt 60 min (eindigt 10:45) — nu is 10:00.
+    const startsAt = new Date("2026-09-17T09:45:00.000Z");
+    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+  });
+
+  test("exact op het eindmoment is nog Komend (inclusief)", () => {
+    // Gestart om 09:00, duurt 60 min → eindigt exact op `now` (10:00).
+    const startsAt = new Date("2026-09-17T09:00:00.000Z");
+    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(true);
+  });
+
+  test("net na het eindmoment is niet meer Komend", () => {
+    // Gestart om 08:59, duurt 60 min → eindigt 09:59, net vóór `now` (10:00).
+    const startsAt = new Date("2026-09-17T08:59:00.000Z");
+    expect(isMeetingUpcoming(startsAt, 60, now)).toBe(false);
   });
 });
