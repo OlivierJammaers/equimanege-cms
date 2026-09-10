@@ -32,6 +32,7 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "status_change",
   "email",
   "system",
+  "meeting",
 ]);
 
 // AI-crawlpijplijn (fase 3) — zie
@@ -144,6 +145,52 @@ export const activities = pgTable(
   (t) => ({ accIdx: index("activities_account_idx").on(t.accountId) }),
 );
 
+/**
+ * Beschikbare meetingmomenten die de admin publiceert. `bookMeeting`
+ * (src/server/actions/meetings.ts) boekt er één door in `meetings` te
+ * inserten; de unique index daar op `slotId` is de race-proof
+ * dubbelboekingsgrendel (niet dit `booked`-veld — dat bestaat hier niet
+ * expres, het slot-is-vrij-of-niet volgt uit de aan-/afwezigheid van een
+ * `meetings`-rij).
+ */
+export const meetingSlots = pgTable(
+  "meeting_slots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull().default(60),
+    createdBy: uuid("created_by").references(() => cmsUsers.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ startsAtIdx: index("meeting_slots_starts_at_idx").on(t.startsAt) }),
+);
+
+/**
+ * Een geboekte meeting op een slot, voor een account. De unieke index op
+ * `slotId` is de race-proof dubbelboekingsgrendel: twee gelijktijdige
+ * `bookMeeting`-calls op hetzelfde slot geven een unique-constraint-fout
+ * i.p.v. twee meetings op één slot.
+ */
+export const meetings = pgTable(
+  "meetings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slotId: uuid("slot_id")
+      .notNull()
+      .references(() => meetingSlots.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    bookedBy: uuid("booked_by").references(() => cmsUsers.id),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    slotIdUq: uniqueIndex("meetings_slot_id_uq").on(t.slotId),
+    accountIdx: index("meetings_account_idx").on(t.accountId),
+  }),
+);
+
 export const accountSnapshots = pgTable("account_snapshots", {
   id: uuid("id").defaultRandom().primaryKey(),
   accountId: uuid("account_id")
@@ -245,6 +292,10 @@ export type NewAccount = typeof accounts.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type CmsUser = typeof cmsUsers.$inferSelect;
+export type MeetingSlot = typeof meetingSlots.$inferSelect;
+export type NewMeetingSlot = typeof meetingSlots.$inferInsert;
+export type Meeting = typeof meetings.$inferSelect;
+export type NewMeeting = typeof meetings.$inferInsert;
 export type CrawlRun = typeof crawlRuns.$inferSelect;
 export type NewCrawlRun = typeof crawlRuns.$inferInsert;
 export type CrawlJob = typeof crawlJobs.$inferSelect;
