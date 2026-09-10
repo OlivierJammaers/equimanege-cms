@@ -91,6 +91,11 @@ export function formatTimeRangeNl(startsAt: Date, endsAt: Date): string {
   return `${timeFormatter.format(startsAt)} – ${timeFormatter.format(endsAt)}`;
 }
 
+/** Formatteert één tijdstip in Brussels tijdzone, bv. "13:00". */
+export function formatTimeNl(instant: Date): string {
+  return timeFormatter.format(instant);
+}
+
 /**
  * Is een meeting "Komend" (nog niet afgelopen) op het gegeven moment?
  * Bepaald door het eindmoment van de meeting, niet het begin — een meeting

@@ -63,12 +63,18 @@ export function AddWindowsForm() {
     startTransition(async () => {
       try {
         const result = await createWindows({ date, ranges });
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success(
           result.count === 1 ? "Beschikbaarheidsblok toegevoegd" : `${result.count} blokken toegevoegd`,
         );
-        setRows([newRow()]);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Toevoegen mislukt.");
+        // Datum + rijen bewust NIET resetten: door de week is het vaak
+        // dezelfde tijden — Olivier kan zo de datum wijzigen en meteen
+        // opnieuw opslaan.
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }

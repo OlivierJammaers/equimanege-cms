@@ -43,12 +43,16 @@ function CancelMeetingButton({ meetingId, accountName }: { meetingId: string; ac
   function handleCancel() {
     startTransition(async () => {
       try {
-        await cancelMeeting(meetingId);
+        const result = await cancelMeeting(meetingId);
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Meeting geannuleerd");
         setOpen(false);
         router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Annuleren mislukt.");
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }

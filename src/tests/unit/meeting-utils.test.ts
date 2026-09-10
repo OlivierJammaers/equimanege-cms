@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   brusselsWallTimeToUtc,
   formatDayLabelNl,
+  formatTimeNl,
   formatTimeRangeNl,
   freeGaps,
   groupWindowsByDay,
@@ -9,6 +10,16 @@ import {
   startOptions,
   windowRangesFromInput,
 } from "@/lib/meeting-utils";
+
+describe("formatTimeNl", () => {
+  test("formatteert één tijdstip in Brussels tijdzone", () => {
+    expect(formatTimeNl(new Date("2026-09-17T12:00:00.000Z"))).toBe("14:00");
+  });
+
+  test("houdt rekening met winter (CET, +01:00)", () => {
+    expect(formatTimeNl(new Date("2026-01-17T13:00:00.000Z"))).toBe("14:00");
+  });
+});
 
 describe("brusselsWallTimeToUtc", () => {
   test("zomer (CEST, +02:00): 17 sep 14:00 lokaal wordt 12:00 UTC", () => {

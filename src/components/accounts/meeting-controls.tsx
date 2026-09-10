@@ -103,12 +103,16 @@ export function MeetingControls({
     if (!upcomingMeeting) return;
     startCancelTransition(async () => {
       try {
-        await cancelMeeting(upcomingMeeting.meetingId);
+        const result = await cancelMeeting(upcomingMeeting.meetingId);
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Meeting geannuleerd");
         setCancelOpen(false);
         router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Annuleren mislukt.");
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }
@@ -117,19 +121,23 @@ export function MeetingControls({
     if (!selectedWindow || !selectedStart) return;
     startBookTransition(async () => {
       try {
-        await bookMeeting({
+        const result = await bookMeeting({
           accountId,
           windowId: selectedWindow.windowId,
           start: selectedStart,
           durationMinutes,
           note,
         });
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Meeting ingepland");
         setBookOpen(false);
         resetBookState();
         router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Inplannen mislukt.");
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }

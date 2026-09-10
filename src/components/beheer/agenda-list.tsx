@@ -49,12 +49,16 @@ function MeetingRow({ meeting }: { meeting: AgendaMeetingRow }) {
   function handleCancel() {
     startTransition(async () => {
       try {
-        await cancelMeeting(meeting.meetingId);
+        const result = await cancelMeeting(meeting.meetingId);
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Meeting geannuleerd");
         setCancelOpen(false);
         router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Annuleren mislukt.");
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }
@@ -119,11 +123,15 @@ function WindowRow({ window }: { window: AgendaWindowRow }) {
   function handleDelete() {
     startTransition(async () => {
       try {
-        await deleteWindow(window.windowId);
+        const result = await deleteWindow(window.windowId);
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
         toast.success("Beschikbaarheidsblok verwijderd");
         router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Verwijderen mislukt.");
+      } catch {
+        toast.error("Er ging iets mis — probeer opnieuw.");
       }
     });
   }

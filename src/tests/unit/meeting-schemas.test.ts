@@ -2,9 +2,33 @@ import { describe, expect, test } from "vitest";
 import {
   bookMeetingSchema,
   createWindowsSchema,
+  firstIssueMessage,
   meetingIdSchema,
   windowIdSchema,
 } from "@/lib/meeting-schemas";
+
+describe("firstIssueMessage", () => {
+  test("geeft de melding van het eerste validatieprobleem terug", () => {
+    const result = bookMeetingSchema.safeParse({
+      accountId: "niet-een-uuid",
+      windowId: "22222222-2222-4222-8222-222222222222",
+      start: "2026-09-17T13:00:00.000Z",
+      durationMinutes: 60,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(firstIssueMessage(result.error)).toBe(result.error.issues[0]?.message);
+    }
+  });
+
+  test("geeft de eerste melding bij meerdere problemen (volgorde van het schema)", () => {
+    const result = createWindowsSchema.safeParse({ date: "niet-geldig", ranges: [] });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(firstIssueMessage(result.error)).toBe("Ongeldige datum.");
+    }
+  });
+});
 
 describe("createWindowsSchema", () => {
   test("aanvaardt een geldige datum + van/tot-reeksen", () => {
